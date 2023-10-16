@@ -170,7 +170,7 @@ def run_phdp(runtime_options):
                 CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
 
             # 1065.645-4:
-            time_aligned_data['xH2Odil_mol/vol'] = \
+            time_aligned_data['xH2Odil_mol/mol'] = \
                 time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * time_aligned_data['pH2Odilsat_kPa'] / \
                 time_aligned_data['pCellAmbient_kPa']
 
