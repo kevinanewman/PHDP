@@ -165,13 +165,10 @@ def run_phdp(runtime_options):
                  phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
             time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
-            AF3 = time_aligned_data['Tsat_K'].values
             # 1065.645-1:
-            time_aligned_data['pH2Odilsat_kPa'] = 10 ** ((10.79574 * (1 - (273.16 / AF3))) -
-                                                         (5.028 * np.log10(AF3 / 273.16)) +
-                                                         (0.000150475 * (1 - (10 ** (-8.2969 * ((AF3 / 273.16) - 1)))))
-                                                         + (0.00042873 * (10 ** (4.76955 * (1 - (273.16 / AF3))) - 1))
-                                                         - 0.2138602)
+            time_aligned_data['pH2Odilsat_kPa'] = \
+                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
+
             # 1065.645-4:
             time_aligned_data['xH2Odil_mol/vol'] = \
                 time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * time_aligned_data['pH2Odilsat_kPa'] / \
@@ -180,12 +177,7 @@ def run_phdp(runtime_options):
             time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
                                                   time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
             # 1065.645-5
-            AI3 = time_aligned_data['pH2Odilscal_Pa']
-            time_aligned_data['Tdewdil_K'] = (207.98233 - 20.156028 * np.log(AI3) + 0.46778925 *
-                                              (np.log(AI3)) ** 2 - 9.2288067 * 10 ** (-6) * (np.log(AI3)) ** 3) / \
-                                             (1 - 0.13319669 * np.log(AI3) +
-                                              5.6577518 * 10 ** (-3) * (np.log(AI3)) ** 2
-                                              - 7.5172865 * 10 ** (-5) * (np.log(AI3)) ** 3)
+            time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
 
             time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
             time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']

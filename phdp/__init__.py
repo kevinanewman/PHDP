@@ -32,6 +32,8 @@ try:
     from common.phdp_functions import *
     from common import file_io, phdp_log
 
+    import CFR1065
+
     from tkinter import filedialog
 
     class PHDPSettings(PHDPBase):
