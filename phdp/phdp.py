@@ -84,12 +84,12 @@ def load_data():
         Load test data into phdp_globals.test_data dict
 
     """
-    # read the Horiba file
-    phdp_log.logwrite('reading %s...' % phdp_globals.options.horiba_file)
-    unitized_columns = get_unitized_columns(phdp_globals.options.horiba_file, sheet_name='ContinuousData1')
-    phdp_globals.test_data['horiba_data'] = \
-        pd.read_excel(phdp_globals.options.horiba_file, names=unitized_columns, header=1, skiprows=0,
-                      sheet_name='ContinuousData1')
+    # # read the Horiba file (not used for now)
+    # phdp_log.logwrite('reading %s...' % phdp_globals.options.horiba_file)
+    # unitized_columns = get_unitized_columns(phdp_globals.options.horiba_file, sheet_name='ContinuousData1')
+    # phdp_globals.test_data['horiba_data'] = \
+    #     pd.read_excel(phdp_globals.options.horiba_file, names=unitized_columns, header=1, skiprows=0,
+    #                   sheet_name='ContinuousData1')
 
     # read in the rest of the files just in case
     os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
@@ -170,12 +170,13 @@ def run_phdp(runtime_options):
                 CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
 
             # 1065.645-4:
-            time_aligned_data['xH2Odil_mol/mol'] = \
-                time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * time_aligned_data['pH2Odilsat_kPa'] / \
-                time_aligned_data['pCellAmbient_kPa']
+            time_aligned_data['xH2Odil_mol/mol'] = CFR1065.relative_humidity(time_aligned_data['CVSDilAirRH_Avg_%'],
+                                                                             time_aligned_data['pH2Odilsat_kPa'],
+                                                                             time_aligned_data['pCellAmbient_kPa'])
 
             time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
                                                   time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
+
             # 1065.645-5
             time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
 

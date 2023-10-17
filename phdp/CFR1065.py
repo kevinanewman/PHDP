@@ -5,6 +5,7 @@ CFR 1065 code
 """
 
 import numpy as np
+from common.phdp_functions import ASTM_round
 
 
 def vapor_pressure_of_water_kPa(Tsat_K):
@@ -33,7 +34,29 @@ def vapor_pressure_of_water_kPa(Tsat_K):
                   - 0.2138602)
 
 
-def dewpoint_temp_K(pH2O):
+def relative_humidity(RH_pct, pH2O_kPa, pABS_kPa):
+    """
+    CFR 1065.645-4
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.645
+
+    If you measure humidity as a relative humidity, RH,
+    determine the amount of water in an ideal gas, xH2O, as follows.
+
+    Args:
+        RH_pct (float): percent relative humidity, e.g. ``48.89``
+        pH2O (float): vapor pressure of water at measured conditions
+        pABS_kPa (float): wet static absolute pressure at measured conditions
+
+    Returns:
+        xH2O mol/mol, relative humidity
+
+    """
+    RH = RH_pct / 100
+
+    return RH * pH2O_kPa / pABS_kPa
+
+
+def dewpoint_temp_K(pH2O_scaled):
     """
     CFR 1065.645-5
     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.645
@@ -47,14 +70,31 @@ def dewpoint_temp_K(pH2O):
     using the equation below.
 
     Args:
-        pH2O (float): vapor pressure of water at measured conditions
+        pH2O_scaled (float): water vapor pressure scaled to the relative humidity at the location of the
+            relative humidity measurement, Tsat = Tamb
 
     Returns:
         The dewpoint temperature, K
 
     """
-    return (207.98233 - 20.156028 * np.log(pH2O) + 0.46778925 *
-            (np.log(pH2O)) ** 2 - 9.2288067 * 10 ** (-6) * (np.log(pH2O)) ** 3) / \
-        (1 - 0.13319669 * np.log(pH2O) +
-         5.6577518 * 10 ** (-3) * (np.log(pH2O)) ** 2
-         - 7.5172865 * 10 ** (-5) * (np.log(pH2O)) ** 3)
+    return (207.98233 - 20.156028 * np.log(pH2O_scaled) + 0.46778925 *
+            (np.log(pH2O_scaled)) ** 2 - 9.2288067 * 10 ** (-6) * (np.log(pH2O_scaled)) ** 3) / \
+        (1 - 0.13319669 * np.log(pH2O_scaled) +
+         5.6577518 * 10 ** (-3) * (np.log(pH2O_scaled)) ** 2
+         - 7.5172865 * 10 ** (-5) * (np.log(pH2O_scaled)) ** 3)
+
+
+if __name__ == '__main__':
+    test_pass = True
+
+    pH2O = ASTM_round(vapor_pressure_of_water_kPa(282.65), 6)
+    test_pass = test_pass and pH2O == 1.186581
+
+    xH2O = ASTM_round(relative_humidity(50.77, 2.3371, 99.980), 6)
+    test_pass = test_pass and xH2O == 0.011868
+
+    Tdew_K = ASTM_round(dewpoint_temp_K(925.717), 6)
+    test_pass = test_pass and Tdew_K == 279.001023
+
+    if not test_pass:
+        os._exit(-1)
