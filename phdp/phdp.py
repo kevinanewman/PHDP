@@ -116,7 +116,7 @@ def load_data(test_site):
                                 encoding=phdp_globals.options.encoding[test_site], encoding_errors='strict',
                                 header=1, skiprows=0)
             else:
-                unitized_columns = get_unitized_columns(input_file, units_nrows=0)
+                get_unitized_columns(input_file, units_nrows=0)  # dump tad columns to logfile for reference
                 phdp_globals.test_data[file_name] = pd.read_csv(input_file)
 
 
