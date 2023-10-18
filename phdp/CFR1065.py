@@ -6,6 +6,7 @@ CFR 1065 code
 
 import numpy as np
 from common.phdp_functions import ASTM_round
+from constants import constants
 
 
 def vapor_pressure_of_water_kPa(Tsat_K):
@@ -83,14 +84,83 @@ def dewpoint_temp_K(pH2O_scaled):
          5.6577518 * 10 ** (-3) * (np.log(pH2O_scaled)) ** 2
          - 7.5172865 * 10 ** (-5) * (np.log(pH2O_scaled)) ** 3)
 
-def alpha():
+
+def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):
     """
     CFR 1065.655-20
     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
 
+    Calculate alpha, atomic hydrogen-to-carbon ratio
+
+    Args:
+        qmFuel_gph (Series): fuel mass flow rate, grams per hour
+        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+
+    Returns:
+        alpha, atomic hydrogen-to-carbon ratio
 
     """
-    pass
+    fuel_rate_negative = qmFuel_gph < 0
+
+    alpha = (constants['MC_g/mol'] / constants['MH_g/mol'] *
+       (qmFuel_gph * constants['whFuel'] + DEFMassFlowRate_Avg_gph * constants['whDef']) /
+       (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+
+    alpha.loc[fuel_rate_negative] = 1.86  # for now, eventually probably: alpha.loc[~fuel_rate_negative].mean()
+
+    return alpha
+
+
+def beta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
+
+    Calculate beta, atomic oxygen-to-carbon ratio
+
+    Args:
+        qmFuel_gph (Series): fuel mass flow rate, grams per hour
+        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+
+    Returns:
+        beta, atomic oxygen-to-carbon ratio
+
+    """
+    fuel_rate_negative = qmFuel_gph < 0
+
+    beta = (constants['MC_g/mol'] / constants['MO_g/mol'] *
+            (DEFMassFlowRate_Avg_gph * constants['woDef']) /
+            (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+
+    beta.loc[fuel_rate_negative] = 0.03  # for now, eventually probably: beta.loc[~fuel_rate_negative].mean()
+
+    return beta
+
+
+def delta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
+
+    Calculate delta, atomic nitrogen-to-carbon ratio
+
+    Args:
+        qmFuel_gph (Series): fuel mass flow rate, grams per hour
+        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+
+    Returns:
+        delta, atomic nitrogen-to-carbon ratio
+
+    """
+    fuel_rate_negative = qmFuel_gph < 0
+
+    delta = (constants['MC_g/mol'] / constants['MN_g/mol'] *
+        (DEFMassFlowRate_Avg_gph * constants['wnDef'])/
+             (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+
+    delta.loc[fuel_rate_negative] = 0.007  # for now, eventually probably: delta.loc[~fuel_rate_negative].mean()
+
+    return delta
 
 
 if __name__ == '__main__':

@@ -104,6 +104,41 @@ def load_data():
                             header=1, skiprows=0)
 
 
+def time_align_continuous_data(test_site):
+    """
+    Time-align continuous data, add Vehicle Moving from cycle definition
+
+    Args:
+        test_site (str): e.g. 'HD02'
+
+    Returns:
+        Dataframe of time-aligned data
+
+    """
+    from test_sites import test_sites
+
+    ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+    time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
+    for source in test_sites[test_site]['signals_and_delays'].keys():
+        print(source)
+        for signal in test_sites[test_site]['signals_and_delays'][source]:
+            print(signal)
+            delay_s = test_sites[test_site]['signals_and_delays'][source][signal]
+            delay_samples = round(delay_s / ContinuousLoggerPeriod_s)
+            time_aligned_data = pd.concat([time_aligned_data,
+                                           pd.DataFrame({signal: phdp_globals.test_data[source][signal]
+                                                        .iloc[delay_samples:].values})], axis=1)
+    time_aligned_data = \
+        time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == 1].reset_index(drop=True)
+    # add vehicle moving flag
+    test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
+                                                                      ['EmissionsCycleNumber_Integer'] == 1]
+    vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
+    time_aligned_data = pd.concat([time_aligned_data,
+                                   pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+    return time_aligned_data
+
+
 def run_phdp(runtime_options):
     """
 
@@ -135,29 +170,7 @@ def run_phdp(runtime_options):
             load_data()
 
             # pull in raw data and time align as necessary
-            from test_sites import test_sites
-
-            ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
-            time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
-
-            for source in test_sites[test_site]['signals_and_delays'].keys():
-                print(source)
-                for signal in test_sites[test_site]['signals_and_delays'][source]:
-                    print(signal)
-                    delay_s = test_sites[test_site]['signals_and_delays'][source][signal]
-                    delay_samples = round(delay_s / ContinuousLoggerPeriod_s)
-                    time_aligned_data = pd.concat([time_aligned_data,
-                                                   pd.DataFrame({signal: phdp_globals.test_data[source][signal]
-                                                                .iloc[delay_samples:].values})], axis=1)
-            time_aligned_data = \
-                time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == 1].reset_index(drop=True)
-
-            # add vehicle moving flag
-            test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
-                                                                              ['EmissionsCycleNumber_Integer'] == 1]
-            vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
-            time_aligned_data = pd.concat([time_aligned_data,
-                                           pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+            time_aligned_data = time_align_continuous_data(test_site)
 
             # add calculated values
             time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
@@ -184,7 +197,24 @@ def run_phdp(runtime_options):
             time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
             time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
 
-            time_aligned_data.to_csv('tad.csv', index=False)
+            from constants import constants, update_constants
+            update_constants()  # update constants that rely on test fuel properties, etc
+
+            time_aligned_data['Power_kW'] = \
+                np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
+
+            time_aligned_data['α'] = \
+                CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+            time_aligned_data['β'] = \
+                CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+            time_aligned_data['δ'] = \
+                CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+            time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'tad.csv', index=False)
+
+            print('done!')
 
     except:
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
