@@ -83,6 +83,15 @@ def dewpoint_temp_K(pH2O_scaled):
          5.6577518 * 10 ** (-3) * (np.log(pH2O_scaled)) ** 2
          - 7.5172865 * 10 ** (-5) * (np.log(pH2O_scaled)) ** 3)
 
+def alpha():
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
+
+
+    """
+    pass
+
 
 if __name__ == '__main__':
     test_pass = True
