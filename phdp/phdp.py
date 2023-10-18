@@ -122,11 +122,12 @@ def run_phdp(runtime_options):
         if not init_fail:
             if phdp_globals.options.horiba_file is None:
                 phdp_globals.options.horiba_file = \
-                    filedialog.askopenfilename(title='Select Horiba Tn File', filetypes=[('xlsm', '*.xlsm')])
+                    filedialog.askopenfilename(title='Select any test file', filetypes=[('csv', '*.csv')])
+                # filedialog.askopenfilename(title='Select Horiba Tn File', filetypes=[('xlsm', '*.xlsm')])
 
             horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
 
-            test_site, test_datetime, test_num, test_type = horiba_filename.replace('.Tn', '').split('.')
+            test_site, test_datetime, test_num, test_type, _ = horiba_filename.replace('.Tn', '').split('.')
 
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
