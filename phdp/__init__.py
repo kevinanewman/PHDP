@@ -74,6 +74,10 @@ try:
             self.notification_destination = None
             self.notification_email = None
             self.notification_password = None
+            self.encoding = {  # input file encoding (decoding) methods
+                'HD02': 'cp1252',
+            }
+
 
 except:
     print("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())

@@ -43,7 +43,7 @@ def init_phdp(runtime_options):
     return init_fail
 
 
-def get_unitized_columns(filename, sheet_name=None, ignore_units=['Text']):
+def get_unitized_columns(filename, sheet_name=None, ignore_units=('Text', ''), encoding='utf-8', units_nrows=1):
     """
     Combine column labels and units row into a single combined string to identify the column.
 
@@ -51,6 +51,8 @@ def get_unitized_columns(filename, sheet_name=None, ignore_units=['Text']):
         filename (str): name of the file to read
         sheet_name (str): for reading a particular Excel sheet, or ``None`` for CSV files
         ignore_units (list of str): unit values to ignore, default ``Text``
+        encoding (str): file encoding (decoding) method name
+        units_nrows (int): number of units rows, if any
 
     Returns:
         List of combined column headers and units as in ``['ColumnName_units', ...]``
@@ -58,10 +60,16 @@ def get_unitized_columns(filename, sheet_name=None, ignore_units=['Text']):
     """
     if sheet_name:
         columns = pd.read_excel(filename, header=None, nrows=1, sheet_name=sheet_name)
-        units = pd.read_excel(filename, header=None, skiprows=1, nrows=1, sheet_name=sheet_name)
+        if units_nrows > 0:
+            units = pd.read_excel(filename, header=None, skiprows=1, nrows=units_nrows, sheet_name=sheet_name)
+        else:
+            units = pd.DataFrame({'units': [''] * columns.shape[1]}).transpose()
     else:
-        columns = pd.read_csv(filename, header=None, nrows=1,  encoding='cp1252', encoding_errors='strict')
-        units = pd.read_csv(filename, header=None, skiprows=1, nrows=1, encoding='cp1252', encoding_errors='strict')
+        columns = pd.read_csv(filename, header=None, nrows=1,  encoding=encoding, encoding_errors='strict')
+        if units_nrows > 0:
+            units = pd.read_csv(filename, header=None, skiprows=1, nrows=units_nrows, encoding=encoding, encoding_errors='strict')
+        else:
+            units = pd.DataFrame({'units': [''] * columns.shape[1]}).transpose()
 
     unitized_columns = []
 
@@ -79,9 +87,12 @@ def get_unitized_columns(filename, sheet_name=None, ignore_units=['Text']):
     return unitized_columns
 
 
-def load_data():
+def load_data(test_site):
     """
         Load test data into phdp_globals.test_data dict
+
+    Args:
+        test_site (str): test site ID, e.g. 'HD02'
 
     """
     # # read the Horiba file (not used for now)
@@ -98,10 +109,15 @@ def load_data():
         file_name = input_file.rsplit('.', 2)[-2]
         if file_name != 'Processing':
             phdp_log.logwrite('reading %s...' % input_file)
-            unitized_columns = get_unitized_columns(input_file)
-            phdp_globals.test_data[file_name] = \
-                pd.read_csv(input_file, names=unitized_columns, encoding='cp1252', encoding_errors='strict',
-                            header=1, skiprows=0)
+            if file_name != 'tad':
+                unitized_columns = get_unitized_columns(input_file, encoding=phdp_globals.options.encoding[test_site])
+                phdp_globals.test_data[file_name] = \
+                    pd.read_csv(input_file, names=unitized_columns,
+                                encoding=phdp_globals.options.encoding[test_site], encoding_errors='strict',
+                                header=1, skiprows=0)
+            else:
+                unitized_columns = get_unitized_columns(input_file, units_nrows=0)
+                phdp_globals.test_data[file_name] = pd.read_csv(input_file)
 
 
 def time_align_continuous_data(test_site):
@@ -136,6 +152,7 @@ def time_align_continuous_data(test_site):
     vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
     time_aligned_data = pd.concat([time_aligned_data,
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+
     return time_aligned_data
 
 
@@ -167,7 +184,7 @@ def run_phdp(runtime_options):
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
             # load all raw data, even if not all required for now
-            load_data()
+            load_data(test_site)
 
             # pull in raw data and time align as necessary
             time_aligned_data = time_align_continuous_data(test_site)
