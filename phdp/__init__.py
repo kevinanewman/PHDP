@@ -78,7 +78,7 @@ try:
                 'HD02': 'cp1252',  # observed file encoding from test data
             }
 
-            self.output_encoding = 'cp1253'  # supports greek letters on Windows machines
+            self.output_encoding = 'utf-8'  # cp1253 supports greek letters on Windows machines
 
 
 except:
