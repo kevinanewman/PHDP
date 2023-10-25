@@ -19,7 +19,7 @@ def vapor_pressure_of_water_kPa(Tsat_K):
     saturation temperature condition:
 
     (1) For humidity measurements made at ambient temperatures from (0 to 100) °C, or for humidity measurements made
-     over super-cooled water at ambient temperatures from (−50 to 0) °C, use the equation below.
+     over super-cooled water at ambient temperatures from (-50 to 0) °C, use the equation below.
 
     Args:
         Tsat_K (float): saturation temperature of water at measured conditions, K
@@ -64,7 +64,7 @@ def dewpoint_temp_K(pH2O_scaled):
 
     Dewpoint determination from relative humidity and dry bulb temperature.  This paragraph (d) describes how to
     calculate dewpoint temperature from relative humidity, RH. This is based on “ITS–90 Formulations for Vapor Pressure,
-    Frostpoint Temperature, Dewpoint Temperature, and Enhancement Factors in the Range −100 to + 100 °C”
+    Frostpoint Temperature, Dewpoint Temperature, and Enhancement Factors in the Range -100 to + 100 °C”
     (Hardy, B., The Proceedings of the Third International Symposium on Humidity & Moisture, Teddington, London,
     England, April 1998). Calculate pH20sat as described in paragraph (a) of this section based on setting Tsat equal
     to Tamb. Calculate pH20scaled by multiplying pH20sat by RH. Calculate the dewpoint, Tdew, from pH20
@@ -83,6 +83,92 @@ def dewpoint_temp_K(pH2O_scaled):
         (1 - 0.13319669 * np.log(pH2O_scaled) +
          5.6577518 * 10 ** (-3) * (np.log(pH2O_scaled)) ** 2
          - 7.5172865 * 10 ** (-5) * (np.log(pH2O_scaled)) ** 3)
+
+
+def xccombdry(time_aligned_data):
+    """
+    CFR 1065.655-3
+
+    Args:
+        time_aligned_data (DataFrame): source data
+
+    Returns:
+
+    """
+    return (time_aligned_data['xCO2dry_%'] / 100) + (time_aligned_data['xCOdry_μmol/mol'] / 1e6) + \
+        (time_aligned_data['xTHCdry_μmol/mol'] / 1e6) - (time_aligned_data['xCO2dil_μmol/mol'] / 1e6) * \
+        time_aligned_data['xdil/exhdry_mol/mol'] - (time_aligned_data['xCO2int_μmol/mol'] / 1e6) * \
+        time_aligned_data['xint/exhdry_mol/mol']
+
+
+def xH2exhdry(time_aligned_data):
+    """
+    CFR 1065.655-4
+
+    Args:
+        time_aligned_data (DataFrame): source data
+
+    Returns:
+
+    """
+    return (time_aligned_data['xCOdry_μmol/mol'] * (time_aligned_data['xH2Oexhdry_mol/mol'] -
+                                                    time_aligned_data['xH2Odil_mol/mol'] *
+                                                    time_aligned_data['xdil/exhdry_mol/mol'])) \
+        / (constants['KH2O-gas'] * (time_aligned_data['xCO2dry_%'] / 100 -
+                                    time_aligned_data['xCO2dil_μmol/mol'] * time_aligned_data['xdil/exhdry_mol/mol'] / 1e6))
+
+
+def xH2Oexhdry(time_aligned_data):
+    """
+    CFR 1065.655-5
+
+    Args:
+        time_aligned_data (DataFrame): source data
+
+    Returns:
+
+    """
+    return (time_aligned_data['α'] / 2) * (time_aligned_data['xCcombdry_mol/mol_prior'] -
+                                           (time_aligned_data['xTHCdry_μmol/mol'] / 1e6)) + \
+        time_aligned_data['xH2Odil_mol/mol'] * time_aligned_data['xdil/exhdry_mol/mol'] + \
+        time_aligned_data['xH2Oint_mol/mol'] * time_aligned_data['xint/exhdry_mol/mol_prior'] - \
+        (time_aligned_data['xH2dry_μmol/mol_prior'] / 1e6)
+
+
+
+def xintexhdry(time_aligned_data):
+    """
+        CFR 1065.655-7
+
+        Args:
+            time_aligned_data (DataFrame): source data
+
+        Returns:
+
+    """
+    return (1 / (2 * time_aligned_data['xO2int_%'])) * \
+    (((time_aligned_data['α'] / 2) - time_aligned_data['β'] + 2 + 2 * time_aligned_data['γ']) *
+     (time_aligned_data['xCcombdry_mol/mol_prior'] - (time_aligned_data['xTHCdry_μmol/mol'] / 1e6)) -
+     ((time_aligned_data['xCOdry_μmol/mol'] / 1e6) - (time_aligned_data['xNOdry_μmol/mol'] / 1e6) - 2 *
+      (time_aligned_data['xNO2dry_μmol/mol'] / 1e6) + (time_aligned_data['xH2dry_μmol/mol'] / 1e6)))
+
+
+
+def rawexhdry(time_aligned_data):
+    """
+    CFR 1065.655-8
+
+    Args:
+        time_aligned_data (DataFrame): source data
+
+    Returns:
+
+    """
+    return (1 / 2) * (((time_aligned_data['α'] / 2) + time_aligned_data['β'] + time_aligned_data['δ']) *
+                     (time_aligned_data['xCcombdry_mol/mol_prior'] - (time_aligned_data['xTHCdry_μmol/mol'] / 1e6)) +
+                      (2 * (time_aligned_data['xTHCdry_μmol/mol'] / 1e6) + (time_aligned_data['xCOdry_μmol/mol'] / 1e6) -
+                      (time_aligned_data['xNO2dry_μmol/mol'] / 1e6) + (time_aligned_data['xH2dry_μmol/mol_prior'] / 1e6))) + \
+                      + time_aligned_data['xint/exhdry_mol/mol_prior']
 
 
 def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):

@@ -116,8 +116,8 @@ def load_data(test_site):
                                 encoding=phdp_globals.options.encoding[test_site], encoding_errors='strict',
                                 header=1, skiprows=0)
             else:
-                get_unitized_columns(input_file, units_nrows=0)  # dump tad columns to logfile for reference
-                phdp_globals.test_data[file_name] = pd.read_csv(input_file)
+                get_unitized_columns(input_file, units_nrows=0, encoding=phdp_globals.options.output_encoding)  # dump tad columns to logfile for reference
+                phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
 
 
 def time_align_continuous_data(test_site):
@@ -156,6 +156,10 @@ def time_align_continuous_data(test_site):
     return time_aligned_data
 
 
+def delta_fraction(prior, new):
+    return max(abs((new - prior) / prior))
+
+
 def run_phdp(runtime_options):
     """
 
@@ -191,19 +195,16 @@ def run_phdp(runtime_options):
 
             # add calculated values
             time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
+
             time_aligned_data['CVSFlow_mol/s'] = \
                 (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
                  phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+
             time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
             # 1065.645-1:
             time_aligned_data['pH2Odilsat_kPa'] = \
                 CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
-
-            # 1065.645-4:
-            time_aligned_data['xH2Odil_mol/mol'] = CFR1065.relative_humidity(time_aligned_data['CVSDilAirRH_Avg_%'],
-                                                                             time_aligned_data['pH2Odilsat_kPa'],
-                                                                             time_aligned_data['pCellAmbient_kPa'])
 
             time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
                                                   time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
@@ -212,7 +213,14 @@ def run_phdp(runtime_options):
             time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
 
             time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
+
             time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
+
+            time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+
+            # 1065.645 - 3:
+            time_aligned_data['xH2Odil_mol/mol'] = \
+                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
 
             from constants import constants, update_constants
             update_constants()  # update constants that rely on test fuel properties, etc
@@ -220,18 +228,164 @@ def run_phdp(runtime_options):
             time_aligned_data['Power_kW'] = \
                 np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
 
+            # 1065.655-20:
             time_aligned_data['α'] = \
                 CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
+            # 1065.655-21:
             time_aligned_data['β'] = \
                 CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
+            # 1065.655-23:
             time_aligned_data['δ'] = \
                 CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
-            time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'tad.csv', index=False)
+            time_aligned_data['γ'] = 0  # no gamma for now
+
+            time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_°C'] + 273.15
+
+            time_aligned_data['Tdewint_°C'] = time_aligned_data['tCellDewPt_°C']
+
+            # --- "Calculations" ---
+            # 1065.645-1:
+            time_aligned_data['Tdewint_K'] = time_aligned_data['Tdewint_°C'] + 273.15
+
+            # 1065.645-1:
+            time_aligned_data['pH2Oamb_kPa'] = \
+                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewint_K'])
+
+            # 1065.645-3:
+            time_aligned_data['xH2Oint_mol/mol'] = \
+                time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
+            # --- "Calculations" ---
+
+            # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+            time_aligned_data['xDil/Exh_mol/mol'] = 0
+            time_aligned_data['xDil/Exh_mol/mol_prior'] = 0.8
+
+            time_aligned_data['xH2Oexh_mol/mol'] = 0
+            time_aligned_data['xH2Oexh_mol/mol_prior'] = 2 * time_aligned_data['xH2Oint_mol/mol']
+
+            time_aligned_data['xCcombdry_mol/mol'] = 0
+            time_aligned_data['xCcombdry_mol/mol_prior'] = \
+                time_aligned_data['conCO2_Avg_%vol'] / 100 + (time_aligned_data['conTHC_Avg_ppmC'] +
+                                                              time_aligned_data['conLCO_Avg_ppm']) / 1e6
+
+            time_aligned_data['xH2dry_μmol/mol'] = 0
+            time_aligned_data['xH2dry_μmol/mol_prior'] = 0
+
+            time_aligned_data['xint/exhdry_mol/mol'] = 0
+            time_aligned_data['xint/exhdry_mol/mol_prior'] = 0
+
+            i = 0
+            while (delta_fraction(time_aligned_data['xDil/Exh_mol/mol_prior'],
+                                  time_aligned_data['xDil/Exh_mol/mol']) > 0.001 or
+                   delta_fraction(time_aligned_data['xH2Oexh_mol/mol_prior'],
+                                  time_aligned_data['xH2Oexh_mol/mol']) > 0.001 or
+                   delta_fraction(time_aligned_data['xCcombdry_mol/mol_prior'],
+                                  time_aligned_data['xCcombdry_mol/mol']) > 0.001 or
+                   delta_fraction(time_aligned_data['xH2dry_μmol/mol_prior'],
+                                  time_aligned_data['xH2dry_μmol/mol']) > 0.001 or
+                   delta_fraction(time_aligned_data['xint/exhdry_mol/mol_prior'],
+                                  time_aligned_data['xint/exhdry_mol/mol']) > 0.001):
+
+                # 1065.655-11
+                time_aligned_data['xH2Ointdry_mol/mol'] = \
+                    time_aligned_data['xH2Oint_mol/mol'] / (1 - time_aligned_data['xH2Oint_mol/mol'])
+
+                # 1065.655-13
+                time_aligned_data['xH2Odildry_mol/mol'] = \
+                    time_aligned_data['xH2Odil_mol/mol'] / (1 - time_aligned_data['xH2Odil_mol/mol'])
+
+                # 1065.655-14
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
+                time_aligned_data['xCOdry_μmol/mol'] = \
+                     time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol/100)
+
+                # 1065.655-15
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
+                time_aligned_data['xCO2dry_%'] = \
+                     time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol/100)
+
+                # 1065.655-16
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
+                time_aligned_data['xNOdry_μmol/mol'] = \
+                    time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
+
+                # 1065.655-17
+                time_aligned_data['xNO2dry_μmol/mol'] = \
+                    time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
+
+                # 1065.655(c)(1)
+                ambient_CO2_conc_ppm = phdp_globals.test_data['BagData'].loc[(phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
+                                                                             (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == 1), 'RbAmbConc_ppm'].item()
+                # 1065.655(c)(1)
+                time_aligned_data['xCO2intdry_μmol/mol'] = \
+                    ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Oint_mol/mol'])
+
+                # 1065.655(c)(1)
+                time_aligned_data['xCO2dildry_μmol/mol'] = \
+                    ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Odil_mol/mol'])
+
+                # 1065.655-10
+                time_aligned_data['xCO2int_μmol/mol'] = \
+                    time_aligned_data['xCO2intdry_μmol/mol'] / (1 + time_aligned_data['xH2Ointdry_mol/mol'])
+
+                # 1065.655-12
+                time_aligned_data['xCO2dil_μmol/mol'] = \
+                    time_aligned_data['xCO2dildry_μmol/mol'] / (1 + time_aligned_data['xH2Odildry_mol/mol'])
+
+                # 1065.655-9
+                time_aligned_data['xO2int_%'] = (0.20982 - (time_aligned_data['xCO2intdry_μmol/mol'] / 1e6)) / \
+                                                (1 + time_aligned_data['xH2Ointdry_mol/mol'])
+
+                # 1065.655-6
+                time_aligned_data['xdil/exhdry_mol/mol'] = \
+                    time_aligned_data['xDil/Exh_mol/mol_prior'] / (1 - time_aligned_data['xH2Oexh_mol/mol_prior'])
+
+                # 1065.655-18
+                time_aligned_data['xTHCdry_μmol/mol'] = \
+                    time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol_prior'])
+
+                time_aligned_data['xraw/exhdry_mol/mol'] = CFR1065.rawexhdry(time_aligned_data)
+
+                time_aligned_data['xH2Oexhdry_mol/mol'] = CFR1065.xH2Oexhdry(time_aligned_data)
+
+                time_aligned_data['xH2dry_μmol/mol_prior'] = time_aligned_data['xH2dry_μmol/mol']
+                time_aligned_data['xH2dry_μmol/mol'] = CFR1065.xH2exhdry(time_aligned_data)
+
+                time_aligned_data['xint/exhdry_mol/mol_prior'] = time_aligned_data['xint/exhdry_mol/mol']
+                time_aligned_data['xint/exhdry_mol/mol'] = CFR1065.xintexhdry(time_aligned_data)
+
+                # 1065.655-1
+                time_aligned_data['xDil/Exh_mol/mol_prior'] = time_aligned_data['xDil/Exh_mol/mol']
+                time_aligned_data['xDil/Exh_mol/mol'] = \
+                    1 - time_aligned_data['xraw/exhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
+
+                # 1065.655-2
+                time_aligned_data['xH2Oexh_mol/mol_prior'] = time_aligned_data['xH2Oexh_mol/mol']
+                time_aligned_data['xH2Oexh_mol/mol'] = \
+                    time_aligned_data['xH2Oexhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
+
+                # 1065.655-3
+                time_aligned_data['xCcombdry_mol/mol_prior'] = time_aligned_data['xCcombdry_mol/mol']
+                time_aligned_data['xCcombdry_mol/mol'] = CFR1065.xccombdry(time_aligned_data)
+
+                print(i, time_aligned_data['xCcombdry_mol/mol_prior'][0])
+                i = i + 1
+
+            priors = [c for c in time_aligned_data.columns if '_prior' in c]
+            time_aligned_data = time_aligned_data.drop(columns=priors)
+
+            # just for development, I think:
+            phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
+
+            time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'tad.csv', index=False,
+                                     encoding=phdp_globals.options.output_encoding)
 
             print('done!')
+
+            return time_aligned_data
 
     except:
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
@@ -241,7 +395,7 @@ def run_phdp(runtime_options):
 
 if __name__ == "__main__":
     try:
-        run_phdp(PHDPSettings())
+        time_aligned_data = run_phdp(PHDPSettings())
     except:
         print("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
         os._exit(-1)
