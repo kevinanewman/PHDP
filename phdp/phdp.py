@@ -152,6 +152,7 @@ def time_align_continuous_data(test_site):
     vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
     time_aligned_data = pd.concat([time_aligned_data,
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+    time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
     return time_aligned_data
 
@@ -260,35 +261,19 @@ def run_phdp(runtime_options):
             # --- "Calculations" ---
 
             # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-            time_aligned_data['xDil/Exh_mol/mol'] = 0
-            time_aligned_data['xDil/Exh_mol/mol_prior'] = 0.8
-
-            time_aligned_data['xH2Oexh_mol/mol'] = 0
-            time_aligned_data['xH2Oexh_mol/mol_prior'] = 2 * time_aligned_data['xH2Oint_mol/mol']
-
-            time_aligned_data['xCcombdry_mol/mol'] = 0
-            time_aligned_data['xCcombdry_mol/mol_prior'] = \
+            time_aligned_data['xDil/Exh_mol/mol'] = 0.8
+            time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
+            time_aligned_data['xCcombdry_mol/mol'] = \
                 time_aligned_data['conCO2_Avg_%vol'] / 100 + (time_aligned_data['conTHC_Avg_ppmC'] +
                                                               time_aligned_data['conLCO_Avg_ppm']) / 1e6
-
             time_aligned_data['xH2dry_μmol/mol'] = 0
-            time_aligned_data['xH2dry_μmol/mol_prior'] = 0
-
             time_aligned_data['xint/exhdry_mol/mol'] = 0
-            time_aligned_data['xint/exhdry_mol/mol_prior'] = 0
 
-            i = 0
-            while (delta_fraction(time_aligned_data['xDil/Exh_mol/mol_prior'],
-                                  time_aligned_data['xDil/Exh_mol/mol']) > 0.001 or
-                   delta_fraction(time_aligned_data['xH2Oexh_mol/mol_prior'],
-                                  time_aligned_data['xH2Oexh_mol/mol']) > 0.001 or
-                   delta_fraction(time_aligned_data['xCcombdry_mol/mol_prior'],
-                                  time_aligned_data['xCcombdry_mol/mol']) > 0.001 or
-                   delta_fraction(time_aligned_data['xH2dry_μmol/mol_prior'],
-                                  time_aligned_data['xH2dry_μmol/mol']) > 0.001 or
-                   delta_fraction(time_aligned_data['xint/exhdry_mol/mol_prior'],
-                                  time_aligned_data['xint/exhdry_mol/mol']) > 0.001):
+            time_aligned_data_prior = pd.DataFrame()
 
+            converged = False
+            iteration = 0
+            while not converged:
                 # 1065.655-11
                 time_aligned_data['xH2Ointdry_mol/mol'] = \
                     time_aligned_data['xH2Oint_mol/mol'] / (1 - time_aligned_data['xH2Oint_mol/mol'])
@@ -341,41 +326,42 @@ def run_phdp(runtime_options):
 
                 # 1065.655-6
                 time_aligned_data['xdil/exhdry_mol/mol'] = \
-                    time_aligned_data['xDil/Exh_mol/mol_prior'] / (1 - time_aligned_data['xH2Oexh_mol/mol_prior'])
+                    time_aligned_data['xDil/Exh_mol/mol'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
 
                 # 1065.655-18
                 time_aligned_data['xTHCdry_μmol/mol'] = \
-                    time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol_prior'])
+                    time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
 
                 time_aligned_data['xraw/exhdry_mol/mol'] = CFR1065.rawexhdry(time_aligned_data)
 
                 time_aligned_data['xH2Oexhdry_mol/mol'] = CFR1065.xH2Oexhdry(time_aligned_data)
 
-                time_aligned_data['xH2dry_μmol/mol_prior'] = time_aligned_data['xH2dry_μmol/mol']
                 time_aligned_data['xH2dry_μmol/mol'] = CFR1065.xH2exhdry(time_aligned_data)
 
-                time_aligned_data['xint/exhdry_mol/mol_prior'] = time_aligned_data['xint/exhdry_mol/mol']
                 time_aligned_data['xint/exhdry_mol/mol'] = CFR1065.xintexhdry(time_aligned_data)
 
                 # 1065.655-1
-                time_aligned_data['xDil/Exh_mol/mol_prior'] = time_aligned_data['xDil/Exh_mol/mol']
                 time_aligned_data['xDil/Exh_mol/mol'] = \
                     1 - time_aligned_data['xraw/exhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
 
                 # 1065.655-2
-                time_aligned_data['xH2Oexh_mol/mol_prior'] = time_aligned_data['xH2Oexh_mol/mol']
                 time_aligned_data['xH2Oexh_mol/mol'] = \
                     time_aligned_data['xH2Oexhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
 
                 # 1065.655-3
-                time_aligned_data['xCcombdry_mol/mol_prior'] = time_aligned_data['xCcombdry_mol/mol']
                 time_aligned_data['xCcombdry_mol/mol'] = CFR1065.xccombdry(time_aligned_data)
 
-                print(i, time_aligned_data['xCcombdry_mol/mol_prior'][0])
-                i = i + 1
+                if iteration == 0:
+                    converged = False
+                else:
+                    converged = ((time_aligned_data - time_aligned_data_prior).abs() <=
+                                 phdp_globals.options.chemical_balance_convergence_tolerance *
+                                 time_aligned_data.abs()).all().all()
 
-            priors = [c for c in time_aligned_data.columns if '_prior' in c]
-            time_aligned_data = time_aligned_data.drop(columns=priors)
+                time_aligned_data_prior = time_aligned_data.copy()
+
+                print(iteration, time_aligned_data['xCcombdry_mol/mol'][0])
+                iteration = iteration + 1
 
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep

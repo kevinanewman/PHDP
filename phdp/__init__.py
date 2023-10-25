@@ -79,6 +79,7 @@ try:
             }
 
             self.output_encoding = 'utf-8'  # cp1253 supports greek letters on Windows machines
+            self.chemical_balance_convergence_tolerance = 0.01
 
 
 except:
