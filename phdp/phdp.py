@@ -348,10 +348,6 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
         iteration = iteration + 1
 
 
-def delta_fraction(prior, new):
-    return max(abs((new - prior) / prior))
-
-
 def run_phdp(runtime_options):
     """
 
