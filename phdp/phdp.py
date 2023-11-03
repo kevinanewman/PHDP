@@ -120,12 +120,13 @@ def load_data(test_site):
                 phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
 
 
-def time_align_continuous_data(test_site):
+def time_align_continuous_data(test_site, emissions_cycle_number):
     """
     Time-align continuous data, add Vehicle Moving from cycle definition
 
     Args:
         test_site (str): e.g. 'HD02'
+        emissions_cycle_number (int): emissions cycle number to process
 
     Returns:
         Dataframe of time-aligned data
@@ -145,10 +146,10 @@ def time_align_continuous_data(test_site):
                                            pd.DataFrame({signal: phdp_globals.test_data[source][signal]
                                                         .iloc[delay_samples:].values})], axis=1)
     time_aligned_data = \
-        time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == 1].reset_index(drop=True)
+        time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].reset_index(drop=True)
     # add vehicle moving flag
     test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
-                                                                      ['EmissionsCycleNumber_Integer'] == 1]
+                                                                      ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
     vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
     time_aligned_data = pd.concat([time_aligned_data,
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
@@ -191,8 +192,10 @@ def run_phdp(runtime_options):
             # load all raw data, even if not all required for now
             load_data(test_site)
 
+            emissions_cycle_number = 1  # for now, eventually will loop over cycles, I imagine
+
             # pull in raw data and time align as necessary
-            time_aligned_data = time_align_continuous_data(test_site)
+            time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
 
             # add calculated values
             time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
@@ -302,8 +305,12 @@ def run_phdp(runtime_options):
                     time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
 
                 # 1065.655(c)(1)
-                ambient_CO2_conc_ppm = phdp_globals.test_data['BagData'].loc[(phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
-                                                                             (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == 1), 'RbAmbConc_ppm'].item()
+                ambient_CO2_conc_ppm = \
+                    phdp_globals.test_data['BagData'].loc[
+                        (phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
+                        (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+                        'RbAmbConc_ppm'].item()
+
                 # 1065.655(c)(1)
                 time_aligned_data['xCO2intdry_μmol/mol'] = \
                     ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Oint_mol/mol'])
