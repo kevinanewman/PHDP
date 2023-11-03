@@ -158,6 +158,74 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     return time_aligned_data
 
 
+def calc_chemical_balance_inputs(time_aligned_data):
+    """
+    Calculate values required for chemical balance iteration
+
+    Args:
+        time_aligned_data (dataframe): time-aligned continuous test data
+
+    Returns:
+        Nothing, updates time_aligned_data
+
+    """
+    time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
+
+    time_aligned_data['CVSFlow_mol/s'] = \
+        (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+         phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+
+    time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
+
+    # 1065.645-1:
+    time_aligned_data['pH2Odilsat_kPa'] = \
+        CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
+    time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
+                                          time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
+    # 1065.645-5
+    time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
+    time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
+    time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
+    time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+
+    # 1065.645 - 3:
+    time_aligned_data['xH2Odil_mol/mol'] = \
+        time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+
+    from constants import constants, update_constants
+    update_constants()  # update constants that rely on test fuel properties, etc
+    time_aligned_data['Power_kW'] = \
+        np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
+
+    # 1065.655-20:
+    time_aligned_data['alpha'] = \
+        CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+    # 1065.655-21:
+    time_aligned_data['beta'] = \
+        CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+    # 1065.655-23:
+    time_aligned_data['delta'] = \
+        CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+
+    time_aligned_data['gamma'] = 0  # no gamma for now
+
+    time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_°C'] + 273.15
+    time_aligned_data['Tdewint_°C'] = time_aligned_data['tCellDewPt_°C']
+
+    # 1065.645-1:
+    time_aligned_data['Tdewint_K'] = time_aligned_data['Tdewint_°C'] + 273.15
+
+    # 1065.645-1:
+    time_aligned_data['pH2Oamb_kPa'] = \
+        CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewint_K'])
+
+    # 1065.645-3:
+    time_aligned_data['xH2Oint_mol/mol'] = \
+        time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
+
+
 def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
     """
     Iterate the chemical balance equations
@@ -167,7 +235,7 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
         emissions_cycle_number (int): emissions cycle number to process
 
     Returns:
-        Nothing updates time_aligned_data
+        Nothing, updates time_aligned_data
 
     """
     time_aligned_data['xDil/Exh_mol/mol'] = 0.8
@@ -320,70 +388,7 @@ def run_phdp(runtime_options):
             time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
 
             # add calculated values
-            time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
-
-            time_aligned_data['CVSFlow_mol/s'] = \
-                (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-                 phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
-
-            time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
-
-            # 1065.645-1:
-            time_aligned_data['pH2Odilsat_kPa'] = \
-                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
-
-            time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
-                                                  time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
-
-            # 1065.645-5
-            time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
-
-            time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
-
-            time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
-
-            time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
-
-            # 1065.645 - 3:
-            time_aligned_data['xH2Odil_mol/mol'] = \
-                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
-
-            from constants import constants, update_constants
-            update_constants()  # update constants that rely on test fuel properties, etc
-
-            time_aligned_data['Power_kW'] = \
-                np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
-
-            # 1065.655-20:
-            time_aligned_data['alpha'] = \
-                CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
-
-            # 1065.655-21:
-            time_aligned_data['beta'] = \
-                CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
-
-            # 1065.655-23:
-            time_aligned_data['delta'] = \
-                CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
-
-            time_aligned_data['gamma'] = 0  # no gamma for now
-
-            time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_°C'] + 273.15
-
-            time_aligned_data['Tdewint_°C'] = time_aligned_data['tCellDewPt_°C']
-
-            # --- "Calculations" ---
-            # 1065.645-1:
-            time_aligned_data['Tdewint_K'] = time_aligned_data['Tdewint_°C'] + 273.15
-
-            # 1065.645-1:
-            time_aligned_data['pH2Oamb_kPa'] = \
-                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewint_K'])
-
-            # 1065.645-3:
-            time_aligned_data['xH2Oint_mol/mol'] = \
-                time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
-            # --- "Calculations" ---
+            calc_chemical_balance_inputs(time_aligned_data)
 
             # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
             iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
