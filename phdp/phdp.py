@@ -158,6 +158,128 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     return time_aligned_data
 
 
+def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
+    """
+    Iterate the chemical balance equations
+
+    Args:
+        time_aligned_data (dataframe): time-aligned continuous test data
+        emissions_cycle_number (int): emissions cycle number to process
+
+    Returns:
+        Nothing updates time_aligned_data
+
+    """
+    time_aligned_data['xDil/Exh_mol/mol'] = 0.8
+    time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
+    time_aligned_data['xCcombdry_mol/mol'] = \
+        time_aligned_data['conCO2_Avg_%vol'] / 100 + (time_aligned_data['conTHC_Avg_ppmC'] +
+                                                      time_aligned_data['conLCO_Avg_ppm']) / 1e6
+    time_aligned_data['xH2dry_μmol/mol'] = 0
+    time_aligned_data['xint/exhdry_mol/mol'] = 0
+    time_aligned_data_prior = pd.DataFrame()
+    converged = False
+    iteration = 0
+    while not converged:
+        # 1065.655-11
+        time_aligned_data['xH2Ointdry_mol/mol'] = \
+            time_aligned_data['xH2Oint_mol/mol'] / (1 - time_aligned_data['xH2Oint_mol/mol'])
+
+        # 1065.655-13
+        time_aligned_data['xH2Odildry_mol/mol'] = \
+            time_aligned_data['xH2Odil_mol/mol'] / (1 - time_aligned_data['xH2Odil_mol/mol'])
+
+        # 1065.655-14
+        residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
+
+        time_aligned_data['xCOdry_μmol/mol'] = \
+            time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol / 100)
+
+        # 1065.655-15
+        residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
+
+        time_aligned_data['xCO2dry_%'] = \
+            time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol / 100)
+
+        # 1065.655-16
+        residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
+        time_aligned_data['xNOdry_μmol/mol'] = \
+            time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
+
+        # 1065.655-17
+        time_aligned_data['xNO2dry_μmol/mol'] = \
+            time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
+
+        # 1065.655(c)(1)
+        ambient_CO2_conc_ppm = \
+            phdp_globals.test_data['BagData'].loc[
+                (phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
+                (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+                'RbAmbConc_ppm'].item()
+
+        # 1065.655(c)(1)
+        time_aligned_data['xCO2intdry_μmol/mol'] = \
+            ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Oint_mol/mol'])
+
+        # 1065.655(c)(1)
+        time_aligned_data['xCO2dildry_μmol/mol'] = \
+            ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Odil_mol/mol'])
+
+        # 1065.655-10
+        time_aligned_data['xCO2int_μmol/mol'] = \
+            time_aligned_data['xCO2intdry_μmol/mol'] / (1 + time_aligned_data['xH2Ointdry_mol/mol'])
+
+        # 1065.655-12
+        time_aligned_data['xCO2dil_μmol/mol'] = \
+            time_aligned_data['xCO2dildry_μmol/mol'] / (1 + time_aligned_data['xH2Odildry_mol/mol'])
+
+        # 1065.655-9
+        time_aligned_data['xO2int_%'] = (0.20982 - (time_aligned_data['xCO2intdry_μmol/mol'] / 1e6)) / \
+                                        (1 + time_aligned_data['xH2Ointdry_mol/mol'])
+
+        # 1065.655-6
+        time_aligned_data['xdil/exhdry_mol/mol'] = \
+            time_aligned_data['xDil/Exh_mol/mol'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
+
+        # 1065.655-18
+        time_aligned_data['xTHCdry_μmol/mol'] = \
+            time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
+
+        time_aligned_data['xraw/exhdry_mol/mol'] = CFR1065.rawexhdry(time_aligned_data)
+
+        time_aligned_data['xH2Oexhdry_mol/mol'] = CFR1065.xH2Oexhdry(time_aligned_data)
+
+        time_aligned_data['xH2dry_μmol/mol'] = CFR1065.xH2exhdry(time_aligned_data)
+
+        time_aligned_data['xint/exhdry_mol/mol'] = CFR1065.xintexhdry(time_aligned_data)
+
+        # 1065.655-1
+        time_aligned_data['xDil/Exh_mol/mol'] = \
+            1 - time_aligned_data['xraw/exhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
+
+        # 1065.655-2
+        time_aligned_data['xH2Oexh_mol/mol'] = \
+            time_aligned_data['xH2Oexhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
+
+        # 1065.655-3
+        time_aligned_data['xCcombdry_mol/mol'] = CFR1065.xccombdry(time_aligned_data)
+
+        if iteration == 0:
+            converged = False
+        else:
+            converged = ((time_aligned_data - time_aligned_data_prior).abs() <=
+                         phdp_globals.options.chemical_balance_convergence_tolerance *
+                         time_aligned_data.abs()).all().all()
+
+        time_aligned_data_prior = time_aligned_data.copy()
+
+        print(iteration, time_aligned_data['xCcombdry_mol/mol'][0])
+        iteration = iteration + 1
+
+
 def delta_fraction(prior, new):
     return max(abs((new - prior) / prior))
 
@@ -264,116 +386,7 @@ def run_phdp(runtime_options):
             # --- "Calculations" ---
 
             # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-            time_aligned_data['xDil/Exh_mol/mol'] = 0.8
-            time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
-            time_aligned_data['xCcombdry_mol/mol'] = \
-                time_aligned_data['conCO2_Avg_%vol'] / 100 + (time_aligned_data['conTHC_Avg_ppmC'] +
-                                                              time_aligned_data['conLCO_Avg_ppm']) / 1e6
-            time_aligned_data['xH2dry_μmol/mol'] = 0
-            time_aligned_data['xint/exhdry_mol/mol'] = 0
-
-            time_aligned_data_prior = pd.DataFrame()
-
-            converged = False
-            iteration = 0
-            while not converged:
-                # 1065.655-11
-                time_aligned_data['xH2Ointdry_mol/mol'] = \
-                    time_aligned_data['xH2Oint_mol/mol'] / (1 - time_aligned_data['xH2Oint_mol/mol'])
-
-                # 1065.655-13
-                time_aligned_data['xH2Odildry_mol/mol'] = \
-                    time_aligned_data['xH2Odil_mol/mol'] / (1 - time_aligned_data['xH2Odil_mol/mol'])
-
-                # 1065.655-14
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
-
-                time_aligned_data['xCOdry_μmol/mol'] = \
-                     time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol/100)
-
-                # 1065.655-15
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
-
-                time_aligned_data['xCO2dry_%'] = \
-                     time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol/100)
-
-                # 1065.655-16
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
-                time_aligned_data['xNOdry_μmol/mol'] = \
-                    time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
-
-                # 1065.655-17
-                time_aligned_data['xNO2dry_μmol/mol'] = \
-                    time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
-
-                # 1065.655(c)(1)
-                ambient_CO2_conc_ppm = \
-                    phdp_globals.test_data['BagData'].loc[
-                        (phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
-                        (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
-                        'RbAmbConc_ppm'].item()
-
-                # 1065.655(c)(1)
-                time_aligned_data['xCO2intdry_μmol/mol'] = \
-                    ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Oint_mol/mol'])
-
-                # 1065.655(c)(1)
-                time_aligned_data['xCO2dildry_μmol/mol'] = \
-                    ambient_CO2_conc_ppm / (1 - time_aligned_data['xH2Odil_mol/mol'])
-
-                # 1065.655-10
-                time_aligned_data['xCO2int_μmol/mol'] = \
-                    time_aligned_data['xCO2intdry_μmol/mol'] / (1 + time_aligned_data['xH2Ointdry_mol/mol'])
-
-                # 1065.655-12
-                time_aligned_data['xCO2dil_μmol/mol'] = \
-                    time_aligned_data['xCO2dildry_μmol/mol'] / (1 + time_aligned_data['xH2Odildry_mol/mol'])
-
-                # 1065.655-9
-                time_aligned_data['xO2int_%'] = (0.20982 - (time_aligned_data['xCO2intdry_μmol/mol'] / 1e6)) / \
-                                                (1 + time_aligned_data['xH2Ointdry_mol/mol'])
-
-                # 1065.655-6
-                time_aligned_data['xdil/exhdry_mol/mol'] = \
-                    time_aligned_data['xDil/Exh_mol/mol'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
-
-                # 1065.655-18
-                time_aligned_data['xTHCdry_μmol/mol'] = \
-                    time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
-
-                time_aligned_data['xraw/exhdry_mol/mol'] = CFR1065.rawexhdry(time_aligned_data)
-
-                time_aligned_data['xH2Oexhdry_mol/mol'] = CFR1065.xH2Oexhdry(time_aligned_data)
-
-                time_aligned_data['xH2dry_μmol/mol'] = CFR1065.xH2exhdry(time_aligned_data)
-
-                time_aligned_data['xint/exhdry_mol/mol'] = CFR1065.xintexhdry(time_aligned_data)
-
-                # 1065.655-1
-                time_aligned_data['xDil/Exh_mol/mol'] = \
-                    1 - time_aligned_data['xraw/exhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
-
-                # 1065.655-2
-                time_aligned_data['xH2Oexh_mol/mol'] = \
-                    time_aligned_data['xH2Oexhdry_mol/mol'] / (1 + time_aligned_data['xH2Oexhdry_mol/mol'])
-
-                # 1065.655-3
-                time_aligned_data['xCcombdry_mol/mol'] = CFR1065.xccombdry(time_aligned_data)
-
-                if iteration == 0:
-                    converged = False
-                else:
-                    converged = ((time_aligned_data - time_aligned_data_prior).abs() <=
-                                 phdp_globals.options.chemical_balance_convergence_tolerance *
-                                 time_aligned_data.abs()).all().all()
-
-                time_aligned_data_prior = time_aligned_data.copy()
-
-                print(iteration, time_aligned_data['xCcombdry_mol/mol'][0])
-                iteration = iteration + 1
+            iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
 
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
