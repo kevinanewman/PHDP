@@ -389,6 +389,108 @@ def run_phdp(runtime_options):
             # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
             iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
 
+            from constants import constants
+
+            # CFR 1065.659-1
+            xH2OCO2dilmeas = phdp_globals.test_data['EmsComponents'].loc[
+                phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilCO2_System']['ResidualH2O_%vol'].item()
+            time_aligned_data['xCO2exh_%vol'] = time_aligned_data['conCO2_Avg_%vol'] * \
+                                                ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCO2dilmeas/100))
+
+            # CFR 1065.659-1
+            time_aligned_data['xTHCexh_μmol/mol'] = \
+                time_aligned_data['conTHC_Avg_ppmC'] - \
+                phdp_globals.test_data['TestParameters']['InitialDilTHC_ppmC'].item()
+
+            # CFR 1065.660-9
+            DiluteRFPFC2H6_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFPFC2H6_Fraction'].item()
+            DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
+            time_aligned_data['xCH4exh_μmol/mol'] = \
+                (time_aligned_data['conCH4cutter_Avg_ppmC'] -
+                 time_aligned_data['conTHC_Avg_ppmC'] * DiluteRFPFC2H6_Fraction) / \
+                (1-DiluteRFPFC2H6_Fraction * DiluteRFCH4_Fraction)
+
+            # CFR 1065.660-4
+            time_aligned_data['xNMHCexh_μmol/mol'] = \
+                (time_aligned_data['xTHCexh_μmol/mol'] -
+                 time_aligned_data['xCH4exh_μmol/mol'] * DiluteRFCH4_Fraction) / \
+                (1 - DiluteRFPFC2H6_Fraction * DiluteRFCH4_Fraction)
+
+            # CFR 1065.659-1
+            xH2OCOdilmeas = phdp_globals.test_data['EmsComponents'].loc[
+                phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilCO_System']['ResidualH2O_%vol'].item()
+            time_aligned_data['xCOexh_μmol/mol'] = \
+                time_aligned_data['conLCO_Avg_ppm'] * \
+                ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCOdilmeas/100))
+
+            # CFR 1065.659-1
+            xH2ONOxdilmeas = phdp_globals.test_data['EmsComponents'].loc[
+                phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilNOx_System']['ResidualH2O_%vol'].item()
+            time_aligned_data['xNOexh_μmol/mol'] = \
+                time_aligned_data['conNOX_Avg_ppm'] * 0.75 * \
+                ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas/100))
+
+            # CFR 1065.659-1
+            time_aligned_data['xNO2exh_μmol/mol'] = \
+                time_aligned_data['conNOX_Avg_ppm'] * 0.25 * \
+                ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas/100))
+
+            # CFR 1065.670-1
+            time_aligned_data['xNOxcorrected_μmol/mol'] = \
+                (time_aligned_data['xNOexh_μmol/mol'] + time_aligned_data['xNO2exh_μmol/mol']) * \
+                (9.953 * time_aligned_data['xH2Oint_mol/mol'] + 0.832)
+
+            # CFR 1065.650-5
+            time_aligned_data['mCO2_g/sec'] = \
+                time_aligned_data['xCO2exh_%vol']/100 * constants['MCO2_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mCO_g/sec'] = \
+                time_aligned_data['xCOexh_μmol/mol']/1e6 * constants['MCO_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mCH4_g/sec'] = \
+                time_aligned_data['xCH4exh_μmol/mol']/1e6 * constants['MCH4_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mTHC_g/sec'] = \
+                time_aligned_data['xTHCexh_μmol/mol']/1e6 * constants['MTHC_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mNMHC_g/sec'] = \
+                time_aligned_data['xNMHCexh_μmol/mol']/1e6 * constants['MNMHC_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mNOxuncorrected_g/sec'] = \
+                (time_aligned_data['xNOexh_μmol/mol'] + time_aligned_data['xNO2exh_μmol/mol'])/1e6 * \
+                constants['MNOx_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mNOxcorrected_g/sec'] = \
+                (time_aligned_data['xNOxcorrected_μmol/mol'])/1e6 * \
+                constants['MNOx_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.650-5
+            time_aligned_data['mN2O_g/sec'] = \
+                time_aligned_data['conN2O_Avg_ppm']/1e6 * constants['MN2O_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+
+            # CFR 1065.640-9
+            time_aligned_data['Mmix_intake_g/mol'] = \
+                constants['Mair_g/mol'] * (1 - time_aligned_data['xH2Oint_mol/mol']) + \
+                constants['MH2O_g/mol'] * time_aligned_data['xH2Oint_mol/mol']
+
+            time_aligned_data['nint_mol/sec'] = \
+                time_aligned_data['qmIntakeAir_Avg_kg/h']/3.6/time_aligned_data['Mmix_intake_g/mol']
+
+            # CFR 1065.655-26
+            time_aligned_data['nexh_mol/sec'] = \
+                (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
+                (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
+                time_aligned_data['nint_mol/sec']
+
+            # CFR 1065.667(C)
+            time_aligned_data['ndil_mol/sec'] = time_aligned_data['CVSFlow_mol/s'] - time_aligned_data['nexh_mol/sec']
+
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
 
