@@ -355,18 +355,18 @@ def run_phdp(runtime_options):
                 np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
 
             # 1065.655-20:
-            time_aligned_data['α'] = \
+            time_aligned_data['alpha'] = \
                 CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
             # 1065.655-21:
-            time_aligned_data['β'] = \
+            time_aligned_data['beta'] = \
                 CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
             # 1065.655-23:
-            time_aligned_data['δ'] = \
+            time_aligned_data['delta'] = \
                 CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
-            time_aligned_data['γ'] = 0  # no gamma for now
+            time_aligned_data['gamma'] = 0  # no gamma for now
 
             time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_°C'] + 273.15
 
