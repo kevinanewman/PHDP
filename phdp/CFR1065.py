@@ -164,9 +164,9 @@ def rawexhdry(time_aligned_data):
     """
     return (1 / 2) * (((time_aligned_data['α'] / 2) + time_aligned_data['β'] + time_aligned_data['δ']) *
                      (time_aligned_data['xCcombdry_mol/mol'] - (time_aligned_data['xTHCdry_μmol/mol'] / 1e6)) +
-                      (2 * (time_aligned_data['xTHCdry_μmol/mol'] / 1e6) + (time_aligned_data['xCOdry_μmol/mol'] / 1e6) -
-                      (time_aligned_data['xNO2dry_μmol/mol'] / 1e6) + (time_aligned_data['xH2dry_μmol/mol'] / 1e6))) + \
-                      + time_aligned_data['xint/exhdry_mol/mol']
+                      (2 * (time_aligned_data['xTHCdry_μmol/mol'] / 1e6) +
+                       (time_aligned_data['xCOdry_μmol/mol'] / 1e6) - (time_aligned_data['xNO2dry_μmol/mol'] / 1e6) +
+                       (time_aligned_data['xH2dry_μmol/mol'] / 1e6))) + time_aligned_data['xint/exhdry_mol/mol']
 
 
 def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):

@@ -286,17 +286,22 @@ def run_phdp(runtime_options):
                     time_aligned_data['xH2Odil_mol/mol'] / (1 - time_aligned_data['xH2Odil_mol/mol'])
 
                 # 1065.655-14
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
+
                 time_aligned_data['xCOdry_μmol/mol'] = \
                      time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol/100)
 
                 # 1065.655-15
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
+
                 time_aligned_data['xCO2dry_%'] = \
                      time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol/100)
 
                 # 1065.655-16
-                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
+                residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
+                    phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
                 time_aligned_data['xNOdry_μmol/mol'] = \
                     time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
 
