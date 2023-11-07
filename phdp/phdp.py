@@ -605,21 +605,11 @@ def run_phdp(runtime_options):
 
             drift_corrected_time_aligned_data = time_aligned_data.copy()
 
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawCO2_Avg_%vol')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawHCO_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawNOX_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawTHC_Avg_ppmC')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawCH4cutter_Avg_ppmC')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawO2_Avg_%vol')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawNH3_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conCO2_Avg_%vol')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conLCO_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conNOX_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conN2O_Avg_ppm')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conTHC_Avg_ppmC')
-            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conCH4cutter_Avg_ppmC')
+            # drift-correct concentrations
+            for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
+                drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
 
-            # drift correct bag values
+            # drift-correct bag values
             phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
             for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
                 if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
