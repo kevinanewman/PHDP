@@ -575,7 +575,7 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, drift_correc
     """
     # calculate summary values
     summary_results = pd.Series()
-    summary_results['avg_xH2Oexh_mol/mol'] = time_aligned_data['xCO2exh_%mol'].mean()
+    summary_results['avg_xCO2exh_%mol'] = time_aligned_data['xCO2exh_%mol'].mean()
     summary_results['avg_xCOexh_μmol/mol'] = time_aligned_data['xCOexh_μmol/mol'].mean()
     summary_results['avg_xNOxcorrected_μmol/mol'] = time_aligned_data['xNOxcorrected_μmol/mol'].mean()
     summary_results['avg_xTHCexh_μmol/mol'] = time_aligned_data['xTHCexh_μmol/mol'].mean()
