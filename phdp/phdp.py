@@ -560,6 +560,92 @@ def drift_correct_bag_data(bag_data, idx):
             (xprespan + xpostspan) - (xprezero + xpostzero))
 
 
+def calc_summary_results(time_aligned_data, emissions_cycle_number, drift_corrected=False):
+    """
+    Calculate summary results for the given time aligned data
+
+    Args:
+        time_aligned_data (dataframe): time-aligned continuous test data
+        emissions_cycle_number (int): emissions cycle number to process
+        drift_corrected (bool): use drift-correct background if ``True``
+
+    Returns:
+        Summary results in a pandas Series
+
+    """
+    # calculate summary values
+    summary_results = pd.Series()
+    summary_results['avg_xH2Oexh_mol/mol'] = time_aligned_data['xCO2exh_%mol'].mean()
+    summary_results['avg_xCOexh_μmol/mol'] = time_aligned_data['xCOexh_μmol/mol'].mean()
+    summary_results['avg_xNOxcorrected_μmol/mol'] = time_aligned_data['xNOxcorrected_μmol/mol'].mean()
+    summary_results['avg_xTHCexh_μmol/mol'] = time_aligned_data['xTHCexh_μmol/mol'].mean()
+    summary_results['avg_xCH4exh_μmol/mol'] = time_aligned_data['xCH4exh_μmol/mol'].mean()
+    summary_results['avg_xNMHCexh_μmol/mol'] = time_aligned_data['xNMHCexh_μmol/mol'].mean()
+    summary_results['avg_xN2O_μmol/mol'] = time_aligned_data['conN2O_Avg_ppm'].mean()
+
+    ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+
+    summary_results['total_dilute_flow_mol'] = time_aligned_data['ndil_mol/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['cycle_work_kWh'] = (
+            ((time_aligned_data['Power_kW'] > 0) * time_aligned_data['Power_kW'] *
+             ContinuousLoggerPeriod_s).sum() / 3600)
+
+    # calculate sample mass grams
+    summary_results['mCO2_g'] = time_aligned_data['mCO2_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mCO_g'] = time_aligned_data['mCO_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mTHC_g'] = time_aligned_data['mTHC_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mCH4_g'] = time_aligned_data['mCH4_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mNMHC+mNOx_g'] = summary_results['mNOx_g'] + summary_results['mNMHC_g']
+    summary_results['mN2O_g'] = time_aligned_data['mN2O_g/sec'].sum() * ContinuousLoggerPeriod_s
+
+    # calculate background mass grams
+    from constants import constants
+
+    if not drift_corrected:
+        BagData = phdp_globals.test_data['BagData']
+    else:
+        BagData = phdp_globals.test_data['drift_corrected_BagData']
+
+    for background_component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O']:
+        background_conc = (
+            BagData.loc[(BagData['RbComponent'] == str.upper(background_component)) &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+        summary_results['m%sbkgrnd_g' % background_component] = (
+                summary_results['total_dilute_flow_mol'] *
+                constants['M%s_g/mol' % background_component] *
+                background_conc / 10 ** 6)
+
+    # handle NMHC mass grams
+    THC_background_conc = (
+        BagData.loc[(BagData['RbComponent'] == 'THC') &
+                    (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+
+    CH4_background_conc = (
+        BagData.loc[(BagData['RbComponent'] == 'CH4') &
+                    (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+    DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
+
+    summary_results['mNMHCbkgrnd_g'] = \
+        (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
+         (THC_background_conc - CH4_background_conc * DiluteRFCH4_Fraction) / 10 ** 6)
+
+    # calculate net mass grams
+    for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
+        summary_results['m%snet_g' % component] = \
+            (summary_results['m%s_g' % component] -
+             summary_results['m%sbkgrnd_g' % component])
+        summary_results['m%snet_g/kWh' % component] = (
+                summary_results['m%snet_g' % component] /
+                summary_results['cycle_work_kWh'])
+
+    # handle NMHC + NOx net mass grams
+    summary_results['mNMHC+mNOxnet_g'] = summary_results['mNOxnet_g'] + summary_results['mNMHCnet_g']
+
+    return summary_results
+
+
 def run_phdp(runtime_options):
     """
 
@@ -603,6 +689,8 @@ def run_phdp(runtime_options):
 
             post_chemical_balance_calculations(time_aligned_data)
 
+            time_aligned_data_summary_results = calc_summary_results(time_aligned_data, emissions_cycle_number)
+
             drift_corrected_time_aligned_data = time_aligned_data.copy()
 
             # drift-correct concentrations
@@ -623,6 +711,9 @@ def run_phdp(runtime_options):
 
             post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
+            drift_corrected_time_aligned_data_summary_results = (
+                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number))
+
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
 
@@ -635,6 +726,14 @@ def run_phdp(runtime_options):
             phdp_globals.test_data['drift_corrected_BagData'].to_csv(
                 phdp_globals.options.output_folder_base + 'dcbagdata.csv', index=False,
                 encoding=phdp_globals.options.output_encoding)
+
+            time_aligned_data_summary_results.to_csv(
+                phdp_globals.options.output_folder_base + 'tadsummary.csv', header=False,
+                encoding=phdp_globals.options.output_encoding)
+
+            drift_corrected_time_aligned_data_summary_results.to_csv(
+                phdp_globals.options.output_folder_base + 'dctadsummary.csv', header=False,
+                    encoding=phdp_globals.options.output_encoding)
 
             print('done!')
 
