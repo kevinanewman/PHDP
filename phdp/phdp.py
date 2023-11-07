@@ -226,13 +226,14 @@ def pre_chemical_balance_calculations(time_aligned_data):
         time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
 
 
-def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
+def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_corrected=False):
     """
     Iterate the chemical balance equations
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
         emissions_cycle_number (int): emissions cycle number to process
+        drift_corrected (bool): use drift-correct background if ``True``
 
     Returns:
         Nothing, updates time_aligned_data
@@ -281,12 +282,15 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number):
         time_aligned_data['xNO2dry_μmol/mol'] = \
             time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
 
+        if not drift_corrected:
+            BagData = phdp_globals.test_data['BagData']
+        else:
+            BagData = phdp_globals.test_data['drift_corrected_BagData']
+
         # 1065.655(c)(1)
         ambient_CO2_conc_ppm = \
-            phdp_globals.test_data['BagData'].loc[
-                (phdp_globals.test_data['BagData']['RbComponent'] == 'CO2') &
-                (phdp_globals.test_data['BagData']['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
-                'RbAmbConc_ppm'].item()
+            BagData.loc[(BagData['RbComponent'] == 'CO2') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item()
 
         # 1065.655(c)(1)
         time_aligned_data['xCO2intdry_μmol/mol'] = \
@@ -460,9 +464,9 @@ def post_chemical_balance_calculations(time_aligned_data):
     time_aligned_data['ndil_mol/sec'] = time_aligned_data['CVSFlow_mol/s'] - time_aligned_data['nexh_mol/sec']
 
 
-def drift_correct(time_aligned_data, signal_name):
+def drift_correct_continuous_data(time_aligned_data, signal_name):
     """
-    Perform drift correction, per CFR1065.672-1
+    Perform drift correction for continuous data, per CFR1065.672-1
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
@@ -519,6 +523,43 @@ def drift_correct(time_aligned_data, signal_name):
             (xprespan + xpostspan) - (xprezero + xpostzero)) / scale_factor
 
 
+def drift_correct_bag_data(bag_data, idx):
+    """
+    Perform drift correction for bag data, per CFR1065.672-1
+
+    Args:
+        bag_data (dataframe): emissions bag data
+        idx (int): row index into bag_data
+
+    Returns:
+        Nothing, updates bag data with drift corrected signal.
+
+    """
+
+    xrefzero = 0
+
+    component = bag_data.loc[idx, 'RbComponent']
+
+    xrefspan = bag_data.loc[idx, 'RbSpanValue_ppm']
+    xprezero = bag_data.loc[idx, 'RbZero2CalMeasured_ppm']
+    xprespan = bag_data.loc[idx, 'RbSpanCalMeasured_ppm']
+
+    DriftCheck = phdp_globals.test_data['BagDriftCheck']
+    xpost_data = DriftCheck[(DriftCheck['DriftComponent'] == component) &
+                            (DriftCheck['EmissionsCycleNumber_Integer'] == bag_data.loc[idx, 'EmissionsCycleNumber_Integer'])]
+
+    xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
+    xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
+
+    bag_data.loc[idx, 'RbSmpConc_ppm'] = xrefzero + (xrefspan - xrefzero) * (
+            2 * bag_data.loc[idx, 'RbSmpConc_ppm'] - (xprezero + xpostzero)) / (
+            (xprespan + xpostspan) - (xprezero + xpostzero))
+
+    bag_data.loc[idx, 'RbAmbConc_ppm'] = xrefzero + (xrefspan - xrefzero) * (
+            2 * bag_data.loc[idx, 'RbAmbConc_ppm'] - (xprezero + xpostzero)) / (
+            (xprespan + xpostspan) - (xprezero + xpostzero))
+
+
 def run_phdp(runtime_options):
     """
 
@@ -564,19 +605,33 @@ def run_phdp(runtime_options):
 
             drift_corrected_time_aligned_data = time_aligned_data.copy()
 
-            drift_correct(drift_corrected_time_aligned_data, 'conRawCO2_Avg_%vol')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawHCO_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawNOX_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawTHC_Avg_ppmC')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawCH4cutter_Avg_ppmC')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawO2_Avg_%vol')
-            drift_correct(drift_corrected_time_aligned_data, 'conRawNH3_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conCO2_Avg_%vol')
-            drift_correct(drift_corrected_time_aligned_data, 'conLCO_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conNOX_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conN2O_Avg_ppm')
-            drift_correct(drift_corrected_time_aligned_data, 'conTHC_Avg_ppmC')
-            drift_correct(drift_corrected_time_aligned_data, 'conCH4cutter_Avg_ppmC')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawCO2_Avg_%vol')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawHCO_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawNOX_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawTHC_Avg_ppmC')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawCH4cutter_Avg_ppmC')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawO2_Avg_%vol')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conRawNH3_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conCO2_Avg_%vol')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conLCO_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conNOX_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conN2O_Avg_ppm')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conTHC_Avg_ppmC')
+            drift_correct_continuous_data(drift_corrected_time_aligned_data, 'conCH4cutter_Avg_ppmC')
+
+            # drift correct bag values
+            phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
+            for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
+                if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
+                    drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
+
+            # add calculated values
+            pre_chemical_balance_calculations(drift_corrected_time_aligned_data)
+
+            # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+            iterate_chemical_balance(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True)
+
+            post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
@@ -586,6 +641,10 @@ def run_phdp(runtime_options):
 
             drift_corrected_time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'dctad.csv', index=False,
                                      encoding=phdp_globals.options.output_encoding)
+
+            phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                phdp_globals.options.output_folder_base + 'dcbagdata.csv', index=False,
+                encoding=phdp_globals.options.output_encoding)
 
             print('done!')
 
