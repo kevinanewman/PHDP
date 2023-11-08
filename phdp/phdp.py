@@ -155,6 +155,10 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
     time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
+    drive_cycle_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
+
+    time_aligned_data = time_aligned_data.iloc[0:drive_cycle_end_index]
+
     return time_aligned_data
 
 
@@ -712,7 +716,7 @@ def run_phdp(runtime_options):
             post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
             drift_corrected_time_aligned_data_summary_results = (
-                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number))
+                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True))
 
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
