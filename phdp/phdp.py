@@ -109,7 +109,7 @@ def load_data(test_site):
         file_name = input_file.rsplit('.', 2)[-2]
         if file_name != 'Processing':
             phdp_log.logwrite('reading %s...' % input_file)
-            if file_name != 'tad':
+            if 'tad' not in file_name:
                 unitized_columns = get_unitized_columns(input_file, encoding=phdp_globals.options.encoding[test_site])
                 phdp_globals.test_data[file_name] = \
                     pd.read_csv(input_file, names=unitized_columns,
