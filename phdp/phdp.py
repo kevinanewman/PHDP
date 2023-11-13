@@ -155,6 +155,10 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
     time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
+    test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
+
+    time_aligned_data = time_aligned_data.iloc[0:test_end_index]
+
     return time_aligned_data
 
 
