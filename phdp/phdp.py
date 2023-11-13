@@ -650,6 +650,142 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, drift_correc
     return summary_results
 
 
+def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_aligned_data_summary_results,
+                      emissions_cycle_number):
+    """
+    Calculate 1036 summary and carbon balance error check results
+
+    Args:
+        drift_corrected_time_aligned_data (dataframe): drift-corrected, time-aligned continuous test data
+        drift_corrected_time_aligned_data_summary_results (series): drift correct summary results
+        emissions_cycle_number (int): emissions cycle number to process
+
+    Returns:
+        Pandas series of 1036 calculation results
+
+    """
+
+    from constants import constants
+
+    calculations_1036 = pd.Series()
+
+    ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+
+    # rho_DEF_g_per_ml = 1.09  # REFERENCE / UNUSED ?
+
+    EmfuelCmeas = phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'].item()
+
+    # CFR 1065.655-19
+    wCmeas = constants['wcFuel']
+
+    calculations_1036['CO2 Energy_Corr g/kWh'] = (
+            drift_corrected_time_aligned_data_summary_results['mCO2net_g/kWh'] * EmfuelCmeas /
+            constants['EmfuelCref	MJ/kg'] / wCmeas)
+
+    BagData = phdp_globals.test_data['drift_corrected_BagData']
+
+    # CFR 1036.550-1
+    xCO2int_corr = BagData.loc[(BagData['RbComponent'] == 'CO2') & (
+            BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item()
+
+    # CFR 1036.535-2
+    mDEF_g = drift_corrected_time_aligned_data[
+                 'DEFMassFlowRate_Avg_g/h'].sum() * ContinuousLoggerPeriod_s / 3600
+    mdot_avg_CO2DEF = (mDEF_g * constants['MCO2_g/mol'] * constants['wCH4N2O_Mass Fraction of urea in DEF'] /
+                       constants['MCH4N2O_g/mol'])
+
+    # CFR 1036.540-5
+    mfuel_term = drift_corrected_time_aligned_data['CVSFlow_mol/s'] * drift_corrected_time_aligned_data[
+        'xCcombdry_mol/mol'] / (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * ContinuousLoggerPeriod_s
+
+    mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
+
+    # CFR 1036.535-4
+    mfuel_g = drift_corrected_time_aligned_data['qmFuel_g/h'].sum() * ContinuousLoggerPeriod_s / 3600
+    calculations_1036['mfuelcor_meas'] = mfuel_g * EmfuelCmeas / constants['EmfuelCref	MJ/kg'] / constants['wCref']
+
+    # CFR 1036.535-4
+    calculations_1036['mfuelcor_dil'] = mfuel_cycle * EmfuelCmeas / constants['EmfuelCref	MJ/kg'] / constants['wCref']
+
+    TestDetails = phdp_globals.test_data['TestDetails']
+
+    simulation_average_vehicle_speed_mps = \
+        TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
+            'CycleAverageVehicleSpeed_m/s'].item()
+
+    calculations_1036['CycleAverageEngineWork_kWh'] = sum(
+        drift_corrected_time_aligned_data['Power_kW'] * drift_corrected_time_aligned_data[
+            'VehicleMoving_Logical'] * (
+                drift_corrected_time_aligned_data['Power_kW'] > 0)) * ContinuousLoggerPeriod_s / 3600
+
+    calculations_1036['CycleAverageIdleSpeed_rpm'] = (
+        (drift_corrected_time_aligned_data['spDyno_rev/min'][
+            drift_corrected_time_aligned_data['VehicleMoving_Logical'] == 0]).mean())
+
+    calculations_1036['CycleAverageTorque_Nm'] = (
+        (drift_corrected_time_aligned_data['tqShaft_Nm'][
+            drift_corrected_time_aligned_data['VehicleMoving_Logical'] == 0]).mean())
+
+    calculations_1036['EngineToVehicleSpeedRatio_rev/mi'] = (
+            (drift_corrected_time_aligned_data['spDyno_rev/min'][drift_corrected_time_aligned_data[
+                                                                     'VehicleMoving_Logical'] == 1]).mean()
+            / 60 / simulation_average_vehicle_speed_mps)
+
+    # Carbon Balance Error Check calculations:
+    # CFR 1065.643-6
+    calculations_1036['mCexh_g'] = (
+            constants['MC_g/mol'] *
+            (drift_corrected_time_aligned_data_summary_results['mCO2net_g'] / constants['MCO2_g/mol'] +
+             drift_corrected_time_aligned_data_summary_results['mCOnet_g'] / constants['MCO_g/mol'] +
+             drift_corrected_time_aligned_data_summary_results['mTHCnet_g'] / constants['MTHC_g/mol']))
+
+    # CFR 1065.643-1
+    nint_mol = drift_corrected_time_aligned_data['nint_mol/sec'].sum() * ContinuousLoggerPeriod_s
+    calculations_1036['mCair_g'] = constants['MC_g/mol'] * nint_mol * xCO2int_corr / 10 ** 6
+
+    # CFR 1065.643-9
+    calculations_1036['mCfluidj_g'] = (
+            constants['wcFuel'] * mfuel_g + constants['wcDef'] * mDEF_g)
+
+    # CFR 1065.643-7
+    calculations_1036['eaC_g'] = (
+            calculations_1036['mCexh_g'] - calculations_1036['mCair_g'] -
+            calculations_1036['mCfluidj_g'])
+
+    # CFR 1065.643-8
+    calculations_1036['erC_rel_err_%'] = (
+            100 * calculations_1036['eaC_g'] /
+            (calculations_1036['mCair_g'] + calculations_1036['mCfluidj_g']))
+
+    # CFR 1065.643-8
+    t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
+        'CycleDuration_s'].item()
+    calculations_1036['eaCrate_g/h'] = calculations_1036['eaC_g'] / t_s * 3600
+
+    # limit from CFR 1065.543 (b)(2)(iii)
+    if abs(calculations_1036['erC_rel_err_%']) > 2.0:
+        calculations_1036['erC_rel_err_%_check'] = 'FAIL'
+    else:
+        calculations_1036['erC_rel_err_%_check'] = 'Pass'
+
+    # limit from CFR 1065.543-1
+    if (abs(calculations_1036['eaC_g']) >
+            ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.007, 3).item()):
+        calculations_1036['eaC_g_check'] = 'FAIL'
+    else:
+        calculations_1036['eaC_g_check'] = 'Pass'
+
+    # limit from CFR 1065.543-1
+    if (abs(calculations_1036['eaCrate_g/h']) >
+            ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.31, 3).item()):
+        calculations_1036['eaCrate_g/h_check'] = 'FAIL'
+    else:
+        calculations_1036['eaCrate_g/h_check'] = 'Pass'
+
+    return calculations_1036
+
+
+
 def run_phdp(runtime_options):
     """
 
@@ -716,7 +852,11 @@ def run_phdp(runtime_options):
             post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
             drift_corrected_time_aligned_data_summary_results = (
-                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number))
+                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True))
+
+            calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
+                                                  drift_corrected_time_aligned_data_summary_results,
+                                                  emissions_cycle_number)
 
             # just for development, I think:
             phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
@@ -738,6 +878,9 @@ def run_phdp(runtime_options):
             drift_corrected_time_aligned_data_summary_results.to_csv(
                 phdp_globals.options.output_folder_base + 'dctadsummary.csv', header=False,
                     encoding=phdp_globals.options.output_encoding)
+
+            calculations_1036.to_csv(phdp_globals.options.output_folder_base + '1036_calculations.csv', header=False,
+                                     encoding=phdp_globals.options.output_encoding)
 
             print('done!')
 
