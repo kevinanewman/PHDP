@@ -816,75 +816,82 @@ def run_phdp(runtime_options):
             # load all raw data, even if not all required for now
             load_data(test_site)
 
-            emissions_cycle_number = 1  # for now, eventually will loop over cycles, I imagine
+            emissions_cycles = \
+                [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
+                 if ecn > 0]
 
-            # pull in raw data and time align as necessary
-            time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
+            for emissions_cycle_number in emissions_cycles:
+                # pull in raw data and time align as necessary
+                time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
 
-            # add calculated values
-            pre_chemical_balance_calculations(time_aligned_data)
+                # add calculated values
+                pre_chemical_balance_calculations(time_aligned_data)
 
-            # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-            iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
+                # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
 
-            post_chemical_balance_calculations(time_aligned_data)
+                post_chemical_balance_calculations(time_aligned_data)
 
-            time_aligned_data_summary_results = calc_summary_results(time_aligned_data, emissions_cycle_number)
+                time_aligned_data_summary_results = calc_summary_results(time_aligned_data, emissions_cycle_number)
 
-            drift_corrected_time_aligned_data = time_aligned_data.copy()
+                drift_corrected_time_aligned_data = time_aligned_data.copy()
 
-            # drift-correct concentrations
-            for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
-                drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
+                # drift-correct concentrations
+                for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
+                    drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
 
-            # drift-correct bag values
-            phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
-            for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
-                if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
-                    drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
+                # drift-correct bag values
+                phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
+                for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
+                    if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
+                        drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
 
-            # add calculated values
-            pre_chemical_balance_calculations(drift_corrected_time_aligned_data)
+                # add calculated values
+                pre_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
-            # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-            iterate_chemical_balance(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True)
+                # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                iterate_chemical_balance(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True)
 
-            post_chemical_balance_calculations(drift_corrected_time_aligned_data)
+                post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
-            drift_corrected_time_aligned_data_summary_results = (
-                calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True))
+                drift_corrected_time_aligned_data_summary_results = (
+                    calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True))
 
-            calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
-                                                  drift_corrected_time_aligned_data_summary_results,
-                                                  emissions_cycle_number)
+                calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
+                                                      drift_corrected_time_aligned_data_summary_results,
+                                                      emissions_cycle_number)
 
-            # just for development, I think:
-            phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
+                # just for development, I think:
+                phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
 
-            time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'tad.csv', index=False,
-                                     encoding=phdp_globals.options.output_encoding)
+                # write outputs:
+                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%d-' % emissions_cycle_number
 
-            drift_corrected_time_aligned_data.to_csv(phdp_globals.options.output_folder_base + 'dctad.csv', index=False,
-                                     encoding=phdp_globals.options.output_encoding)
+                time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'tad.csv', index=False,
+                                         encoding=phdp_globals.options.output_encoding)
 
-            phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                phdp_globals.options.output_folder_base + 'dcbagdata.csv', index=False,
-                encoding=phdp_globals.options.output_encoding)
+                drift_corrected_time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv', index=False,
+                                         encoding=phdp_globals.options.output_encoding)
 
-            time_aligned_data_summary_results.to_csv(
-                phdp_globals.options.output_folder_base + 'tadsummary.csv', header=False,
-                encoding=phdp_globals.options.output_encoding)
-
-            drift_corrected_time_aligned_data_summary_results.to_csv(
-                phdp_globals.options.output_folder_base + 'dctadsummary.csv', header=False,
+                phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
                     encoding=phdp_globals.options.output_encoding)
 
-            calculations_1036.to_csv(phdp_globals.options.output_folder_base + '1036_calculations.csv', header=False,
-                                     encoding=phdp_globals.options.output_encoding)
+                time_aligned_data_summary_results.to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv', header=False,
+                    encoding=phdp_globals.options.output_encoding)
+
+                drift_corrected_time_aligned_data_summary_results.to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv', header=False,
+                        encoding=phdp_globals.options.output_encoding)
+
+                calculations_1036.to_csv(phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv', header=False,
+                                         encoding=phdp_globals.options.output_encoding)
 
             print('done!')
 
-            return time_aligned_data
+            return (time_aligned_data, drift_corrected_time_aligned_data, time_aligned_data_summary_results,
+                    drift_corrected_time_aligned_data_summary_results, calculations_1036)
 
     except:
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
@@ -894,7 +901,8 @@ def run_phdp(runtime_options):
 
 if __name__ == "__main__":
     try:
-        time_aligned_data = run_phdp(PHDPSettings())
+        (time_aligned_data, drift_corrected_time_aligned_data, time_aligned_data_summary_results,
+         drift_corrected_time_aligned_data_summary_results, calculations_1036) = run_phdp(PHDPSettings())
     except:
         print("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
         os._exit(-1)
