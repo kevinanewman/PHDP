@@ -861,8 +861,8 @@ def run_phdp(runtime_options):
                                                       drift_corrected_time_aligned_data_summary_results,
                                                       emissions_cycle_number)
 
-                # just for development, I think:
-                phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
+                # # just for development, I think:
+                # phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
 
                 # write outputs:
                 output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%d-' % emissions_cycle_number
