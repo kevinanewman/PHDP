@@ -135,7 +135,9 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     from test_sites import test_sites
 
     ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
+
     for source in test_sites[test_site]['signals_and_delays'].keys():
         print(source)
         for signal in test_sites[test_site]['signals_and_delays'][source]:
@@ -147,12 +149,15 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
                                                         .iloc[delay_samples:].values})], axis=1)
     time_aligned_data = \
         time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].reset_index(drop=True)
+
     # add vehicle moving flag
     test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
                                                                       ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
     vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
+
     time_aligned_data = pd.concat([time_aligned_data,
                                    pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+
     time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
     test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
@@ -162,12 +167,13 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     return time_aligned_data
 
 
-def pre_chemical_balance_calculations(time_aligned_data):
+def pre_chemical_balance_calculations(time_aligned_data, test_type):
     """
     Calculate values required for chemical balance iteration
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
+        test_type (str): 'transient' or 'modal'
 
     Returns:
         Nothing, updates time_aligned_data
@@ -175,9 +181,16 @@ def pre_chemical_balance_calculations(time_aligned_data):
     """
     time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
 
-    time_aligned_data['CVSFlow_mol/s'] = \
-        (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-         phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+    if test_type == 'transient':
+        time_aligned_data['CVSFlow_mol/s'] = \
+            (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+            phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+    else:
+        time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
+
+        time_aligned_data['CVSFlow_mol/s'] = (
+            (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+             phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
 
     time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
@@ -193,8 +206,13 @@ def pre_chemical_balance_calculations(time_aligned_data):
     time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
 
     # 1065.645 - 3:
-    time_aligned_data['xH2Odil_mol/mol'] = \
-        time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+    if test_type == 'transient':
+        time_aligned_data['xH2Odil_mol/mol'] = \
+            time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+    else:
+        time_aligned_data['xH2Odil_mol/mol'] = (
+                time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
+                time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
@@ -811,21 +829,43 @@ def run_phdp(runtime_options):
 
             test_site, test_datetime, test_num, test_type, _ = horiba_filename.replace('.Tn', '').split('.')
 
+            if test_type.endswith('TRNS'):
+                test_type = 'transient'
+            else:
+                test_type = 'modal'
+
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
             # load all raw data, even if not all required for now
             load_data(test_site)
 
-            emissions_cycles = \
-                [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
-                 if ecn > 0]
+            if test_type == 'transient':
+                emissions_cycles = \
+                    [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
+                     if ecn > 0]
+            else:
+                emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
             for emissions_cycle_number in emissions_cycles:
                 # pull in raw data and time align as necessary
-                time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
+                if test_type == 'transient':
+                    time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
+                else:
+                    # time_aligned_data = get_modal_data(test_site, emissions_cycle_number)
+                    time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == emissions_cycle_number].copy()
+                    time_aligned_data['SampleTime_s'] = phdp_globals.test_data['ModeValidationResults']['SampleTime_s'][emissions_cycle_number-1]
+                    non_numeric_columns = [c for c in time_aligned_data.columns
+                                           if pd.api.types.is_object_dtype(time_aligned_data[c])]
+                    time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
+                    time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
+                    time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
+                    time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
+                    time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
+                    time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
+                    time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
 
                 # add calculated values
-                pre_chemical_balance_calculations(time_aligned_data)
+                pre_chemical_balance_calculations(time_aligned_data, test_type)
 
                 # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
                 iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
