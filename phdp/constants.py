@@ -43,5 +43,3 @@ def update_constants():
     constants['Mfuel_g/mol'] = constants['MC_g/mol'] + constants['FuelHTCRAT_ratio'] * constants['MH_g/mol']
     constants['wcFuel'] = constants['MC_g/mol'] / constants['Mfuel_g/mol']
     constants['whFuel'] = constants['FuelHTCRAT_ratio'] * constants['MH_g/mol'] / constants['Mfuel_g/mol']
-
-    print_dict(constants)

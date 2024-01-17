@@ -139,9 +139,7 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
 
     for source in test_sites[test_site]['signals_and_delays'].keys():
-        print(source)
         for signal in test_sites[test_site]['signals_and_delays'][source]:
-            print(signal)
             delay_s = test_sites[test_site]['signals_and_delays'][source][signal]
             delay_samples = round(delay_s / ContinuousLoggerPeriod_s)
             time_aligned_data = pd.concat([time_aligned_data,
@@ -370,9 +368,13 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
 
         time_aligned_data_prior = time_aligned_data.copy()
 
-        print(iteration, time_aligned_data['xCcombdry_mol/mol'].iloc[0])
+        if iteration > 10:
+            print(emissions_cycle_number, iteration, time_aligned_data['xCcombdry_mol/mol'].iloc[0])
 
         iteration = iteration + 1
+
+    if iteration > 10:
+        print()
 
 
 def post_chemical_balance_calculations(time_aligned_data):
@@ -601,7 +603,7 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
 
     """
     # calculate summary values
-    summary_results = pd.Series()
+    summary_results = pd.DataFrame(index=[0])
     summary_results['avg_xCO2exh_%mol'] = time_aligned_data['xCO2exh_%mol'].mean()
     summary_results['avg_xCOexh_μmol/mol'] = time_aligned_data['xCOexh_μmol/mol'].mean()
     summary_results['avg_xNOxcorrected_μmol/mol'] = time_aligned_data['xNOxcorrected_μmol/mol'].mean()
@@ -666,7 +668,7 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
         summary_results['m%snet_g' % component] = \
             (summary_results['m%s_g' % component] -
              summary_results['m%sbkgrnd_g' % component])
-        if summary_results['cycle_work_kWh'] > 0:
+        if summary_results['cycle_work_kWh'].item() > 0:
             summary_results['m%snet_g/kWh' % component] = (
                     summary_results['m%snet_g' % component] /
                     summary_results['cycle_work_kWh'])
@@ -697,7 +699,7 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
 
     from constants import constants
 
-    calculations_1036 = pd.Series()
+    calculations_1036 = pd.DataFrame(index=[0])
 
     if test_type == 'transient':
         ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
@@ -805,27 +807,26 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
     calculations_1036['eaCrate_g/h'] = calculations_1036['eaC_g'] / t_s * 3600
 
     # limit from CFR 1065.543 (b)(2)(iii)
-    if abs(calculations_1036['erC_rel_err_%']) > 2.0:
+    if abs(calculations_1036['erC_rel_err_%'].item()) > 2.0:
         calculations_1036['erC_rel_err_%_check'] = 'FAIL'
     else:
         calculations_1036['erC_rel_err_%_check'] = 'Pass'
 
     # limit from CFR 1065.543-1
-    if (abs(calculations_1036['eaC_g']) >
+    if (abs(calculations_1036['eaC_g'].item()) >
             ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.007, 3).item()):
         calculations_1036['eaC_g_check'] = 'FAIL'
     else:
         calculations_1036['eaC_g_check'] = 'Pass'
 
     # limit from CFR 1065.543-1
-    if (abs(calculations_1036['eaCrate_g/h']) >
+    if (abs(calculations_1036['eaCrate_g/h'].item()) >
             ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.31, 3).item()):
         calculations_1036['eaCrate_g/h_check'] = 'FAIL'
     else:
         calculations_1036['eaCrate_g/h_check'] = 'Pass'
 
     return calculations_1036
-
 
 
 def run_phdp(runtime_options):
@@ -847,7 +848,6 @@ def run_phdp(runtime_options):
             if phdp_globals.options.horiba_file is None:
                 phdp_globals.options.horiba_file = \
                     filedialog.askopenfilename(title='Select any test file', filetypes=[('csv', '*.csv')])
-                # filedialog.askopenfilename(title='Select Horiba Tn File', filetypes=[('xlsm', '*.xlsm')])
 
             horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
 
@@ -874,6 +874,8 @@ def run_phdp(runtime_options):
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
             for ecn in emissions_cycles:
+                print('\nProcessing %s %d ...' % (test_type, ecn))
+
                 # pull in raw data and time align as necessary
                 if test_type == 'transient':
                     emissions_cycle_number = ecn
@@ -911,7 +913,6 @@ def run_phdp(runtime_options):
 
                 # drift-correct concentrations
                 for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
-                    print(signal_name)
                     drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
 
                 # drift-correct bag values
@@ -951,6 +952,8 @@ def run_phdp(runtime_options):
                 results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
                 results['1036_calculations'].append(calculations_1036)
 
+            print('\nSaving results...\n')
+
             output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
 
             if test_type == 'modal':
@@ -969,20 +972,17 @@ def run_phdp(runtime_options):
                 phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
                 encoding=phdp_globals.options.output_encoding)
 
-            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['tadsummary']]).
-                set_index(index_name).to_csv(
+            pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
-                encoding=phdp_globals.options.output_encoding))
+                encoding=phdp_globals.options.output_encoding)
 
-            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['dctadsummary']]).
-                set_index(index_name).to_csv(
+            pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
-                encoding=phdp_globals.options.output_encoding))
+                encoding=phdp_globals.options.output_encoding)
 
-            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['1036_calculations']]).
-                set_index(index_name).to_csv(
+            pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
-                encoding=phdp_globals.options.output_encoding))
+                encoding=phdp_globals.options.output_encoding)
 
             print('done!')
 
