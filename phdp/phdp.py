@@ -370,7 +370,8 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
 
         time_aligned_data_prior = time_aligned_data.copy()
 
-        print(iteration, time_aligned_data['xCcombdry_mol/mol'][0])
+        print(iteration, time_aligned_data['xCcombdry_mol/mol'].iloc[0])
+
         iteration = iteration + 1
 
 
@@ -856,6 +857,8 @@ def run_phdp(runtime_options):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
+                modal_results = \
+                    {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
 
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
@@ -869,14 +872,18 @@ def run_phdp(runtime_options):
             else:
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
-            for emissions_cycle_number in emissions_cycles:
+            for ecn in emissions_cycles:
                 # pull in raw data and time align as necessary
                 if test_type == 'transient':
+                    emissions_cycle_number = ecn
                     time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
                 else:
-                    # time_aligned_data = get_modal_data(test_site, emissions_cycle_number)
-                    time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == emissions_cycle_number].copy()
-                    time_aligned_data['SampleTime_s'] = phdp_globals.test_data['ModeValidationResults']['SampleTime_s'][emissions_cycle_number-1]
+                    emissions_cycle_number = 1
+                    mode_number = ecn
+                    time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
+                        phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
+                    time_aligned_data['SampleTime_s'] = (
+                        phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
                     non_numeric_columns = [c for c in time_aligned_data.columns
                                            if pd.api.types.is_object_dtype(time_aligned_data[c])]
                     time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
@@ -886,7 +893,7 @@ def run_phdp(runtime_options):
                     time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
                     time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
                     time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
-                    time_aligned_data = time_aligned_data.dropna(axis=1).copy()
+                    time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
                 # add calculated values
                 pre_chemical_balance_calculations(time_aligned_data, test_type)
@@ -931,29 +938,69 @@ def run_phdp(runtime_options):
                 # # just for development, I think:
                 # phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
 
-                # write outputs:
-                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%d-' % emissions_cycle_number
+                if test_type == 'transient':
+                    # write outputs:
+                    output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%d-' % ecn
 
-                time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'tad.csv', index=False,
-                                         encoding=phdp_globals.options.output_encoding)
+                    time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                                             index=False,
+                                             encoding=phdp_globals.options.output_encoding)
 
-                drift_corrected_time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv', index=False,
-                                         encoding=phdp_globals.options.output_encoding)
-
-                phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
-                    encoding=phdp_globals.options.output_encoding)
-
-                time_aligned_data_summary_results.to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv', header=False,
-                    encoding=phdp_globals.options.output_encoding)
-
-                drift_corrected_time_aligned_data_summary_results.to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv', header=False,
+                    drift_corrected_time_aligned_data.to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv', index=False,
                         encoding=phdp_globals.options.output_encoding)
 
-                calculations_1036.to_csv(phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv', header=False,
-                                         encoding=phdp_globals.options.output_encoding)
+                    time_aligned_data_summary_results.to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv', header=False,
+                        encoding=phdp_globals.options.output_encoding)
+
+                    drift_corrected_time_aligned_data_summary_results.to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv', header=False,
+                            encoding=phdp_globals.options.output_encoding)
+
+                    calculations_1036.to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv', header=False,
+                        encoding=phdp_globals.options.output_encoding)
+
+                    phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
+                        encoding=phdp_globals.options.output_encoding)
+
+                else:
+                    modal_results['tad'].append(time_aligned_data)
+                    modal_results['dctad'].append(drift_corrected_time_aligned_data)
+                    time_aligned_data_summary_results['ModeNumber_Integer'] = mode_number
+                    modal_results['tadsummary'].append(time_aligned_data_summary_results)
+                    drift_corrected_time_aligned_data_summary_results['ModeNumber_Integer'] = mode_number
+                    modal_results['dctadsummary'].append(drift_corrected_time_aligned_data_summary_results)
+                    calculations_1036['ModeNumber_Integer'] = mode_number
+                    modal_results['1036_calculations'].append(calculations_1036)
+
+            if test_type == 'modal':
+                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
+
+                pd.concat(modal_results['tad']).set_index('ModeNumber_Integer').to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                    encoding=phdp_globals.options.output_encoding)
+
+                pd.concat(modal_results['dctad']).set_index('ModeNumber_Integer').to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
+                    encoding=phdp_globals.options.output_encoding)
+
+                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['tadsummary']]).
+                    set_index('ModeNumber_Integer').to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding))
+
+                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['dctadsummary']]).
+                    set_index('ModeNumber_Integer').to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding))
+
+                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['1036_calculations']]).
+                    set_index('ModeNumber_Integer').to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
+                    encoding=phdp_globals.options.output_encoding))
 
             print('done!')
 
