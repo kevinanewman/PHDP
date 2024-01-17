@@ -857,8 +857,9 @@ def run_phdp(runtime_options):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
-                modal_results = \
-                    {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
+
+            results = \
+                {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
 
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
@@ -903,7 +904,7 @@ def run_phdp(runtime_options):
 
                 post_chemical_balance_calculations(time_aligned_data)
 
-                time_aligned_data_summary_results = (
+                time_aligned_data_summary = (
                     calc_summary_results(time_aligned_data, emissions_cycle_number, test_type))
 
                 drift_corrected_time_aligned_data = time_aligned_data.copy()
@@ -927,85 +928,65 @@ def run_phdp(runtime_options):
 
                 post_chemical_balance_calculations(drift_corrected_time_aligned_data)
 
-                drift_corrected_time_aligned_data_summary_results = (
+                drift_corrected_time_aligned_data_summary = (
                     calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, test_type,
                                          drift_corrected=True))
 
                 calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
-                                                      drift_corrected_time_aligned_data_summary_results,
+                                                      drift_corrected_time_aligned_data_summary,
                                                       emissions_cycle_number, test_type)
 
-                # # just for development, I think:
-                # phdp_globals.options.output_folder_base = file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep
-
                 if test_type == 'transient':
-                    # write outputs:
-                    output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%d-' % ecn
-
-                    time_aligned_data.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
-                                             index=False,
-                                             encoding=phdp_globals.options.output_encoding)
-
-                    drift_corrected_time_aligned_data.to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv', index=False,
-                        encoding=phdp_globals.options.output_encoding)
-
-                    time_aligned_data_summary_results.to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv', header=False,
-                        encoding=phdp_globals.options.output_encoding)
-
-                    drift_corrected_time_aligned_data_summary_results.to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv', header=False,
-                            encoding=phdp_globals.options.output_encoding)
-
-                    calculations_1036.to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv', header=False,
-                        encoding=phdp_globals.options.output_encoding)
-
-                    phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
-                        encoding=phdp_globals.options.output_encoding)
-
+                    time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                    drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                    calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
                 else:
-                    modal_results['tad'].append(time_aligned_data)
-                    modal_results['dctad'].append(drift_corrected_time_aligned_data)
-                    time_aligned_data_summary_results['ModeNumber_Integer'] = mode_number
-                    modal_results['tadsummary'].append(time_aligned_data_summary_results)
-                    drift_corrected_time_aligned_data_summary_results['ModeNumber_Integer'] = mode_number
-                    modal_results['dctadsummary'].append(drift_corrected_time_aligned_data_summary_results)
+                    time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+                    drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
                     calculations_1036['ModeNumber_Integer'] = mode_number
-                    modal_results['1036_calculations'].append(calculations_1036)
+
+                results['tad'].append(time_aligned_data)
+                results['dctad'].append(drift_corrected_time_aligned_data)
+                results['tadsummary'].append(time_aligned_data_summary)
+                results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
+                results['1036_calculations'].append(calculations_1036)
+
+            output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
 
             if test_type == 'modal':
-                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
-
-                pd.concat(modal_results['tad']).set_index('ModeNumber_Integer').to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                index_name = 'ModeNumber_Integer'
+            else:
+                index_name = 'EmissionsCycleNumber_Integer'
+                phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
                     encoding=phdp_globals.options.output_encoding)
 
-                pd.concat(modal_results['dctad']).set_index('ModeNumber_Integer').to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
-                    encoding=phdp_globals.options.output_encoding)
+            pd.concat(results['tad']).set_index(index_name).to_csv(
+                phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                encoding=phdp_globals.options.output_encoding)
 
-                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['tadsummary']]).
-                    set_index('ModeNumber_Integer').to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
-                    encoding=phdp_globals.options.output_encoding))
+            pd.concat(results['dctad']).set_index(index_name).to_csv(
+                phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
+                encoding=phdp_globals.options.output_encoding)
 
-                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['dctadsummary']]).
-                    set_index('ModeNumber_Integer').to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
-                    encoding=phdp_globals.options.output_encoding))
+            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['tadsummary']]).
+                set_index(index_name).to_csv(
+                phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
+                encoding=phdp_globals.options.output_encoding))
 
-                (pd.concat([pd.DataFrame(ts).transpose() for ts in modal_results['1036_calculations']]).
-                    set_index('ModeNumber_Integer').to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
-                    encoding=phdp_globals.options.output_encoding))
+            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['dctadsummary']]).
+                set_index(index_name).to_csv(
+                phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
+                encoding=phdp_globals.options.output_encoding))
+
+            (pd.concat([pd.DataFrame(ts).transpose() for ts in results['1036_calculations']]).
+                set_index(index_name).to_csv(
+                phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
+                encoding=phdp_globals.options.output_encoding))
 
             print('done!')
 
-            return (time_aligned_data, drift_corrected_time_aligned_data, time_aligned_data_summary_results,
-                    drift_corrected_time_aligned_data_summary_results, calculations_1036)
+            return results
 
     except:
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
@@ -1015,8 +996,7 @@ def run_phdp(runtime_options):
 
 if __name__ == "__main__":
     try:
-        (time_aligned_data, drift_corrected_time_aligned_data, time_aligned_data_summary_results,
-         drift_corrected_time_aligned_data_summary_results, calculations_1036) = run_phdp(PHDPSettings())
+        results = run_phdp(PHDPSettings())
     except:
         print("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
         os._exit(-1)
