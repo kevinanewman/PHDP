@@ -962,27 +962,27 @@ def run_phdp(runtime_options):
                 index_name = 'EmissionsCycleNumber_Integer'
                 phdp_globals.test_data['drift_corrected_BagData'].to_csv(
                     phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
-                    encoding=phdp_globals.options.output_encoding)
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
 
             pd.concat(results['tad']).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
-                encoding=phdp_globals.options.output_encoding)
+                encoding=phdp_globals.options.output_encoding, errors='replace')
 
             pd.concat(results['dctad']).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
-                encoding=phdp_globals.options.output_encoding)
+                encoding=phdp_globals.options.output_encoding, errors='replace')
 
             pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
-                encoding=phdp_globals.options.output_encoding)
+                encoding=phdp_globals.options.output_encoding, errors='replace')
 
             pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
-                encoding=phdp_globals.options.output_encoding)
+                encoding=phdp_globals.options.output_encoding, errors='replace')
 
             pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
                 phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
-                encoding=phdp_globals.options.output_encoding)
+                encoding=phdp_globals.options.output_encoding, errors='replace')
 
             print('done!')
 
