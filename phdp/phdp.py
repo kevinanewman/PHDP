@@ -186,36 +186,53 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
     else:
         time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
 
-        time_aligned_data['CVSFlow_mol/s'] = (
-            (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-             phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
+        if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
+            time_aligned_data['CVSFlow_mol/s'] = (
+                (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+                 phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
+        else:
+            time_aligned_data['CVSFlow_mol/s'] = (
+                    time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
+                    phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
 
     time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
-    # 1065.645-1:
-    time_aligned_data['pH2Odilsat_kPa'] = \
-        CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
-    time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
-                                          time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
-    # 1065.645-5
-    time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
-    time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
-    time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
-    time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+    if 'CVSDilAirRH_Avg_%' in time_aligned_data:
+        # calculations based on relative humidity
+        # 1065.645-1:
+        time_aligned_data['pH2Odilsat_kPa'] = \
+            CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
+        time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
+                                              time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
+        # 1065.645-5
+        time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
+        time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
+        time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
+        time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
 
-    # 1065.645 - 3:
-    if test_type == 'transient':
-        time_aligned_data['xH2Odil_mol/mol'] = \
-            time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+        # 1065.645-3:
+        if test_type == 'transient':
+            time_aligned_data['xH2Odil_mol/mol'] = \
+                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+        else:
+            time_aligned_data['xH2Odil_mol/mol'] = (
+                    time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
+                    time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
     else:
-        time_aligned_data['xH2Odil_mol/mol'] = (
-                time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
-                time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
+        # calculations based on dew point
+        time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
+        # 1065.645-1:
+        time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+        # 1065.645-3:
+        time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
     time_aligned_data['Power_kW'] = \
         np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
+
+    if 'DEFMassFlowRate_Avg_g/h' not in time_aligned_data:
+        time_aligned_data['DEFMassFlowRate_Avg_g/h'] = 0
 
     # 1065.655-20:
     time_aligned_data['alpha'] = \
@@ -530,25 +547,29 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
     xpre_data = (
         EmsCalResults)[(EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline)]
 
-    xrefspan = xpre_data['DriftSpanValue_ppm'].item()
-    xprezero = xpre_data['DriftZero2Measured_ppm'].item()
-    xprespan = xpre_data['DriftSpanMeasured_ppm'].item()
+    if not xpre_data.empty:
+        xrefspan = xpre_data['DriftSpanValue_ppm'].item()
+        xprezero = xpre_data['DriftZero2Measured_ppm'].item()
+        xprespan = xpre_data['DriftSpanMeasured_ppm'].item()
 
-    DriftCheck = phdp_globals.test_data['DriftCheck']
-    xpost_data = (
-        DriftCheck)[(DriftCheck['DriftComponent'] == component) & (DriftCheck['DriftLine'] == driftline)]
+        DriftCheck = phdp_globals.test_data['DriftCheck']
+        xpost_data = (
+            DriftCheck)[(DriftCheck['DriftComponent'] == component) & (DriftCheck['DriftLine'] == driftline)]
 
-    xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
-    xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
+        xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
+        xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
 
-    if unit == '%vol':
-        scale_factor = 10 ** 4
+        if unit == '%vol':
+            scale_factor = 10 ** 4
+        else:
+            scale_factor = 1
+
+        time_aligned_data[signal_name] = xrefzero + (xrefspan - xrefzero) * (
+                2 * time_aligned_data[signal_name] * scale_factor - (xprezero + xpostzero)) / (
+                (xprespan + xpostspan) - (xprezero + xpostzero)) / scale_factor
     else:
-        scale_factor = 1
-
-    time_aligned_data[signal_name] = xrefzero + (xrefspan - xrefzero) * (
-            2 * time_aligned_data[signal_name] * scale_factor - (xprezero + xpostzero)) / (
-            (xprespan + xpostspan) - (xprezero + xpostzero)) / scale_factor
+        phdp_log.logwrite('*** Warning, no zero span zero data available for signal "%s", driftline "%s" ***' %
+                          (signal_name, driftline))
 
 
 def drift_correct_bag_data(bag_data, idx):

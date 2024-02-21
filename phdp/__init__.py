@@ -76,6 +76,7 @@ try:
             self.notification_password = None
             self.encoding = {  # input file encoding (decoding) methods
                 'HD02': 'cp1252',  # observed file encoding from test data
+                'HD05': 'cp1252',  # observed file encoding from test data
             }
 
             self.output_encoding = 'utf-8'  # cp1253 supports greek letters on Windows machines
