@@ -120,12 +120,13 @@ def load_data(test_site):
                 phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
 
 
-def time_align_continuous_data(test_site, emissions_cycle_number):
+def time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number):
     """
     Time-align continuous data, add Vehicle Moving from cycle definition
 
     Args:
         test_site (str): e.g. 'HD02'
+        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
         emissions_cycle_number (int): emissions cycle number to process
 
     Returns:
@@ -148,15 +149,16 @@ def time_align_continuous_data(test_site, emissions_cycle_number):
     time_aligned_data = \
         time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].reset_index(drop=True)
 
-    # add vehicle moving flag
-    test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
-                                                                      ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
-    vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
+    if vehicle_test:
+        # add vehicle moving flag
+        test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
+                                                                          ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
+        vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
 
-    time_aligned_data = pd.concat([time_aligned_data,
-                                   pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
+        time_aligned_data = pd.concat([time_aligned_data,
+                                       pd.DataFrame({'VehicleMoving_Logical': vehicle_moving_int.values})], axis=1)
 
-    time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
+        time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
     test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
 
@@ -180,13 +182,19 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
     time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
 
     if test_type == 'transient':
-        time_aligned_data['CVSFlow_mol/s'] = \
-            (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-            phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
-    else:
-        time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
-
         if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
+            time_aligned_data['CVSFlow_mol/s'] = \
+                (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+                phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+        else:
+            # TODO: need to verify if this is correct for HD05 transient (FTP) test
+            time_aligned_data['CVSFlow_mol/s'] = (
+                    time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
+                    phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
+    else:
+        if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
+            time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
+
             time_aligned_data['CVSFlow_mol/s'] = (
                 (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
                  phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
@@ -223,8 +231,13 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
         time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
         # 1065.645-1:
         time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
-        # 1065.645-3:
-        time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+        if test_type == 'transient':
+            # TODO: verify this for transient non-RH-based calculations
+            # 1065.645-3:
+            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_kPa']
+        else:
+            # 1065.645-3:
+            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
@@ -872,12 +885,17 @@ def run_phdp(runtime_options):
 
             horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
 
-            test_site, test_datetime, test_num, test_type, _ = horiba_filename.replace('.Tn', '').split('.')
+            test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
 
-            if test_type.endswith('TRNS'):
+            if test_name in ('GHGTRNS', 'FTP', 'RMC', 'LLC'):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
+
+            if test_name in ('GHGTRNS'):
+                vehicle_test = True
+            else:
+                vehicle_test = False
 
             results = \
                 {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
@@ -900,7 +918,7 @@ def run_phdp(runtime_options):
                 # pull in raw data and time align as necessary
                 if test_type == 'transient':
                     emissions_cycle_number = ecn
-                    time_aligned_data = time_align_continuous_data(test_site, emissions_cycle_number)
+                    time_aligned_data = time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number)
                 else:
                     emissions_cycle_number = 1
                     mode_number = ecn

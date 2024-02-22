@@ -64,7 +64,7 @@ test_sites['HD05'] = {
                 'IntakeAirPress_Avg_kPa': 0,
                 'tCellDewPt_°C': 0,
 
-                'CVSDilAirRH_Avg_%': 0,
+                'CVSDilAirDPTemp_Avg_°C': 0,
                 'CVSDilAirTemp_Avg_°C': 0,
                 'conRawCO2_Avg_%vol': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'RawCO2_System']['SampleDelay_s'].item(),
                 'conRawHCO_Avg_ppm': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'RawCO_System']['SampleDelay_s'].item(),
@@ -79,7 +79,7 @@ test_sites['HD05'] = {
                 'conN2O_Avg_ppm': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilN2O_System']['SampleDelay_s'].item(),
                 'conTHC_Avg_ppmC': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilTHC_System']['SampleDelay_s'].item(),
                 'conCH4cutter_Avg_ppmC': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilCH4_System']['SampleDelay_s'].item(),
-                'CVSFlow_Avg_m³/s': 0,
+                'CVSMolarFlow_Avg_mol/s': 0,
                 'BagFillFlow_Avg_l/min': 0,
             },
         },  # signals_and_delays
