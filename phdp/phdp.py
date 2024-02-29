@@ -169,9 +169,10 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
 
     if sampled_crank:
         test_start_index = time_aligned_data[time_aligned_data['EngDynoMode'] == 'Starting'].index[0]
-        time_aligned_data = time_aligned_data.drop('EngDynoMode', axis=1)  # can't have strings in the tad
     else:
         test_start_index = 0
+
+    time_aligned_data = time_aligned_data.drop('EngDynoMode', axis=1)  # can't have strings in the tad
 
     test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
 
