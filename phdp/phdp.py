@@ -16,6 +16,7 @@ path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(path, '..'))  # picks up omega_model sub-packages
 
 from phdp import *
+from constants import constants
 
 
 def init_phdp(runtime_options):
@@ -120,13 +121,14 @@ def load_data(test_site):
                 phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
 
 
-def time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number):
+def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number):
     """
     Time-align continuous data, add Vehicle Moving from cycle definition
 
     Args:
         test_site (str): e.g. 'HD02'
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
+        sampled_crank (bool): ``True`` if test has sampled engine cranking and startup
         emissions_cycle_number (int): emissions cycle number to process
 
     Returns:
@@ -135,24 +137,29 @@ def time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number):
     """
     from test_sites import test_sites
 
-    ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+    SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+
+    constants['SamplePeriod_s'] = SamplePeriod_s
 
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
 
     for source in test_sites[test_site]['signals_and_delays'].keys():
         for signal in test_sites[test_site]['signals_and_delays'][source]:
             delay_s = test_sites[test_site]['signals_and_delays'][source][signal]
-            delay_samples = round(delay_s / ContinuousLoggerPeriod_s)
+            delay_samples = round(delay_s / SamplePeriod_s)
             time_aligned_data = pd.concat([time_aligned_data,
                                            pd.DataFrame({signal: phdp_globals.test_data[source][signal]
                                                         .iloc[delay_samples:].values})], axis=1)
     time_aligned_data = \
-        time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].reset_index(drop=True)
+        (time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].
+         reset_index(drop=True))
 
     if vehicle_test:
         # add vehicle moving flag
-        test_cycle_definition = phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
-                                                                          ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
+        test_cycle_definition = \
+            phdp_globals.test_data['CycleDefinition'][phdp_globals.test_data['CycleDefinition']
+                                               ['EmissionsCycleNumber_Integer'] == emissions_cycle_number]
+
         vehicle_moving_int = test_cycle_definition['VehicleMoving_Logical']
 
         time_aligned_data = pd.concat([time_aligned_data,
@@ -160,9 +167,17 @@ def time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number):
 
         time_aligned_data['VehicleMoving_Logical'] = 1 * time_aligned_data['VehicleMoving_Logical'].fillna(False)
 
+    if sampled_crank:
+        test_start_index = time_aligned_data[time_aligned_data['EngDynoMode'] == 'Starting'].index[0]
+        time_aligned_data = time_aligned_data.drop('EngDynoMode', axis=1)  # can't have strings in the tad
+    else:
+        test_start_index = 0
+
     test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
 
-    time_aligned_data = time_aligned_data.iloc[0:test_end_index]
+    time_aligned_data = time_aligned_data.iloc[test_start_index:test_end_index]
+
+    time_aligned_data = time_aligned_data.fillna(0)  # TODO: for now, need to confirm...
 
     return time_aligned_data
 
@@ -249,15 +264,15 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
 
     # 1065.655-20:
     time_aligned_data['alpha'] = \
-        CFR1065.alpha(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.alpha(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
     # 1065.655-21:
     time_aligned_data['beta'] = \
-        CFR1065.beta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.beta(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
     # 1065.655-23:
     time_aligned_data['delta'] = \
-        CFR1065.delta(time_aligned_data['qmFuel_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.delta(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
 
     time_aligned_data['gamma'] = 0  # no gamma for now
 
@@ -402,6 +417,8 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
             print(emissions_cycle_number, iteration, time_aligned_data['xCcombdry_mol/mol'].iloc[0])
 
         iteration = iteration + 1
+
+    print('Converged in %d iterations' % iteration)
 
     if iteration > 10:
         print()
@@ -636,6 +653,8 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
         Summary results in a pandas Series
 
     """
+    from constants import constants
+
     # calculate summary values
     summary_results = pd.DataFrame(index=[0])
     summary_results['avg_xCO2exh_%mol'] = time_aligned_data['xCO2exh_%mol'].mean()
@@ -646,25 +665,22 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
     summary_results['avg_xNMHCexh_μmol/mol'] = time_aligned_data['xNMHCexh_μmol/mol'].mean()
     summary_results['avg_xN2O_μmol/mol'] = time_aligned_data['conN2O_Avg_ppm'].mean()
 
-    if test_type == 'transient':
-        ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
-    else:
-        ContinuousLoggerPeriod_s = time_aligned_data['SampleTime_s'].item()
+    SamplePeriod_s = constants['SamplePeriod_s']
 
-    summary_results['total_dilute_flow_mol'] = time_aligned_data['ndil_mol/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['total_dilute_flow_mol'] = time_aligned_data['ndil_mol/sec'].sum() * SamplePeriod_s
     summary_results['cycle_work_kWh'] = (
             ((time_aligned_data['Power_kW'] > 0) * time_aligned_data['Power_kW'] *
-             ContinuousLoggerPeriod_s).sum() / 3600)
+             SamplePeriod_s).sum() / 3600)
 
     # calculate sample mass grams
-    summary_results['mCO2_g'] = time_aligned_data['mCO2_g/sec'].sum() * ContinuousLoggerPeriod_s
-    summary_results['mCO_g'] = time_aligned_data['mCO_g/sec'].sum() * ContinuousLoggerPeriod_s
-    summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g/sec'].sum() * ContinuousLoggerPeriod_s
-    summary_results['mTHC_g'] = time_aligned_data['mTHC_g/sec'].sum() * ContinuousLoggerPeriod_s
-    summary_results['mCH4_g'] = time_aligned_data['mCH4_g/sec'].sum() * ContinuousLoggerPeriod_s
-    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mCO2_g'] = time_aligned_data['mCO2_g/sec'].sum() * SamplePeriod_s
+    summary_results['mCO_g'] = time_aligned_data['mCO_g/sec'].sum() * SamplePeriod_s
+    summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g/sec'].sum() * SamplePeriod_s
+    summary_results['mTHC_g'] = time_aligned_data['mTHC_g/sec'].sum() * SamplePeriod_s
+    summary_results['mCH4_g'] = time_aligned_data['mCH4_g/sec'].sum() * SamplePeriod_s
+    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * SamplePeriod_s
     summary_results['mNMHC+mNOx_g'] = summary_results['mNOx_g'] + summary_results['mNMHC_g']
-    summary_results['mN2O_g'] = time_aligned_data['mN2O_g/sec'].sum() * ContinuousLoggerPeriod_s
+    summary_results['mN2O_g'] = time_aligned_data['mN2O_g/sec'].sum() * SamplePeriod_s
 
     # calculate background mass grams
     from constants import constants
@@ -716,7 +732,7 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
 
 
 def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_aligned_data_summary_results,
-                      emissions_cycle_number, test_type):
+                      emissions_cycle_number, test_type, vehicle_test):
     """
     Calculate 1036 summary and carbon balance error check results
 
@@ -725,6 +741,7 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
         drift_corrected_time_aligned_data_summary_results (series): drift correct summary results
         emissions_cycle_number (int): emissions cycle number to process
         test_type (str): 'transient' or 'modal'
+        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
 
     Returns:
         Pandas series of 1036 calculation results
@@ -735,10 +752,7 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
 
     calculations_1036 = pd.DataFrame(index=[0])
 
-    if test_type == 'transient':
-        ContinuousLoggerPeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
-    else:
-        ContinuousLoggerPeriod_s = drift_corrected_time_aligned_data['SampleTime_s'].item()
+    SamplePeriod_s = constants['SamplePeriod_s']
 
     # rho_DEF_g_per_ml = 1.09  # REFERENCE / UNUSED ?
 
@@ -759,18 +773,18 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
 
     # CFR 1036.535-2
     mDEF_g = drift_corrected_time_aligned_data[
-                 'DEFMassFlowRate_Avg_g/h'].sum() * ContinuousLoggerPeriod_s / 3600
+                 'DEFMassFlowRate_Avg_g/h'].sum() * SamplePeriod_s / 3600
     mdot_avg_CO2DEF = (mDEF_g * constants['MCO2_g/mol'] * constants['wCH4N2O_Mass Fraction of urea in DEF'] /
                        constants['MCH4N2O_g/mol'])
 
     # CFR 1036.540-5
     mfuel_term = drift_corrected_time_aligned_data['CVSFlow_mol/s'] * drift_corrected_time_aligned_data[
-        'xCcombdry_mol/mol'] / (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * ContinuousLoggerPeriod_s
+        'xCcombdry_mol/mol'] / (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s
 
     mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
 
     # CFR 1036.535-4
-    mfuel_g = drift_corrected_time_aligned_data['qmFuel_g/h'].sum() * ContinuousLoggerPeriod_s / 3600
+    mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
     calculations_1036['mfuelcor_meas'] = mfuel_g * EmfuelCmeas / constants['EmfuelCref	MJ/kg'] / constants['wCref']
 
     # CFR 1036.535-4
@@ -778,12 +792,12 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
 
     if test_type == 'modal':
         # units g/s instead of g:
-        calculations_1036['mfuelcor_meas'] = calculations_1036['mfuelcor_meas'] / ContinuousLoggerPeriod_s
-        calculations_1036['mfuelcor_dil'] = calculations_1036['mfuelcor_dil'] / ContinuousLoggerPeriod_s
+        calculations_1036['mfuelcor_meas'] = calculations_1036['mfuelcor_meas'] / SamplePeriod_s
+        calculations_1036['mfuelcor_dil'] = calculations_1036['mfuelcor_dil'] / SamplePeriod_s
 
     TestDetails = phdp_globals.test_data['TestDetails']
 
-    if test_type == 'transient':
+    if test_type == 'transient' and vehicle_test:
         simulation_average_vehicle_speed_mps = \
             TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
                 'CycleAverageVehicleSpeed_m/s'].item()
@@ -791,7 +805,7 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
         calculations_1036['CycleAverageEngineWork_kWh'] = sum(
             drift_corrected_time_aligned_data['Power_kW'] * drift_corrected_time_aligned_data[
                 'VehicleMoving_Logical'] * (
-                    drift_corrected_time_aligned_data['Power_kW'] > 0)) * ContinuousLoggerPeriod_s / 3600
+                    drift_corrected_time_aligned_data['Power_kW'] > 0)) * SamplePeriod_s / 3600
 
         calculations_1036['CycleAverageIdleSpeed_rpm'] = (
             (drift_corrected_time_aligned_data['spDyno_rev/min'][
@@ -815,7 +829,7 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
              drift_corrected_time_aligned_data_summary_results['mTHCnet_g'] / constants['MTHC_g/mol']))
 
     # CFR 1065.643-1
-    nint_mol = drift_corrected_time_aligned_data['nint_mol/sec'].sum() * ContinuousLoggerPeriod_s
+    nint_mol = drift_corrected_time_aligned_data['nint_mol/sec'].sum() * SamplePeriod_s
     calculations_1036['mCair_g'] = constants['MC_g/mol'] * nint_mol * xCO2int_corr / 10 ** 6
 
     # CFR 1065.643-9
@@ -834,10 +848,15 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
 
     # CFR 1065.643-8
     if test_type == 'transient':
-        t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
-            'CycleDuration_s'].item()
+        if 'CycleDuration_s' in TestDetails:
+            t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
+                'CycleDuration_s'].item()
+        else:
+            t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
+                'PMSampleTime_s'].item()
+
     else:
-        t_s = ContinuousLoggerPeriod_s
+        t_s = SamplePeriod_s
     calculations_1036['eaCrate_g/h'] = calculations_1036['eaC_g'] / t_s * 3600
 
     # limit from CFR 1065.543 (b)(2)(iii)
@@ -887,7 +906,11 @@ def run_phdp(runtime_options):
 
             test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
 
-            if test_name in ('GHGTRNS', 'FTP', 'RMC', 'LLC'):
+            sampled_crank = False
+            if test_name in ('FTP', 'LLC'):
+                test_type = 'transient'
+                sampled_crank = True
+            elif test_name in ('GHGTRNS', 'RMC'):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
@@ -918,7 +941,8 @@ def run_phdp(runtime_options):
                 # pull in raw data and time align as necessary
                 if test_type == 'transient':
                     emissions_cycle_number = ecn
-                    time_aligned_data = time_align_continuous_data(test_site, vehicle_test, emissions_cycle_number)
+                    time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
+                                                                   emissions_cycle_number)
                 else:
                     emissions_cycle_number = 1
                     mode_number = ecn
@@ -926,12 +950,13 @@ def run_phdp(runtime_options):
                         phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
                     time_aligned_data['SampleTime_s'] = (
                         phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
+                    constants['SamplePeriod_s'] = time_aligned_data['SampleTime_s'].item()                    
                     non_numeric_columns = [c for c in time_aligned_data.columns
                                            if pd.api.types.is_object_dtype(time_aligned_data[c])]
                     time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
                     time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
                     time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
-                    time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
+                    # time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
                     time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
                     time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
                     time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
@@ -974,7 +999,7 @@ def run_phdp(runtime_options):
 
                 calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
                                                       drift_corrected_time_aligned_data_summary,
-                                                      emissions_cycle_number, test_type)
+                                                      emissions_cycle_number, test_type, vehicle_test)
 
                 if test_type == 'transient':
                     time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
