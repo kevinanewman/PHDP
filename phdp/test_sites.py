@@ -19,7 +19,7 @@ test_sites['HD02'] = {
                 'tqShaft_Nm': 0,
 
                 'qmIntakeAir_Avg_kg/h': phdp_globals.test_data['TestParameters']['AirFlowDelay_s'].item(),
-                'qmFuel_g/h': phdp_globals.test_data['TestParameters']['FuelFlowDelay_s'].item(),
+                'qmFuel_Avg_g/h': phdp_globals.test_data['TestParameters']['FuelFlowDelay_s'].item(),
                 'DEFMassFlowRate_Avg_g/h': 0,
                 'tIntakeAir_°C': 0,
                 'IntakeAirPress_Avg_kPa': 0,
@@ -42,6 +42,7 @@ test_sites['HD02'] = {
                 'conCH4cutter_Avg_ppmC': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilCH4_System']['SampleDelay_s'].item(),
                 'CVSFlow_Avg_m³/s': 0,
                 'BagFillFlow_Avg_l/min': 0,
+                'EngDynoMode': 0,
             },
         },  # signals_and_delays
 }  # HD02
@@ -58,7 +59,7 @@ test_sites['HD05'] = {
                 'tqShaft_Nm': 0,
 
                 'qmIntakeAir_Avg_kg/h': phdp_globals.test_data['TestParameters']['AirFlowDelay_s'].item(),
-                'qmFuel_g/h': phdp_globals.test_data['TestParameters']['FuelFlowDelay_s'].item(),
+                'qmFuel_Avg_g/h': phdp_globals.test_data['TestParameters']['FuelFlowDelay_s'].item(),
                 'DEFMassFlowRate_Avg_g/h': 0,
                 'tIntakeAir_°C': 0,
                 'IntakeAirPress_Avg_kPa': 0,
@@ -81,6 +82,7 @@ test_sites['HD05'] = {
                 'conCH4cutter_Avg_ppmC': phdp_globals.test_data['EmsComponents'].loc[phdp_globals.test_data['EmsComponents']['ParameterName'] == 'DilCH4_System']['SampleDelay_s'].item(),
                 'CVSMolarFlow_Avg_mol/s': 0,
                 'BagFillFlow_Avg_l/min': 0,
+                'EngDynoMode': 0,
             },
         },  # signals_and_delays
 }  # HD05
