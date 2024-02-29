@@ -184,13 +184,20 @@ def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):
         alpha, atomic hydrogen-to-carbon ratio
 
     """
-    fuel_rate_negative = qmFuel_gph < 0
+    fuel_rate_positive = qmFuel_gph > 0
 
     alpha = (constants['MC_g/mol'] / constants['MH_g/mol'] *
        (qmFuel_gph * constants['whFuel'] + DEFMassFlowRate_Avg_gph * constants['whDef']) /
        (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
 
-    alpha.loc[fuel_rate_negative] = 1.86  # for now, eventually probably: alpha.loc[~fuel_rate_negative].mean()
+    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
+    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
+
+    default_alpha = (constants['MC_g/mol']/constants['MH_g/mol'] *
+                     (mfuel_g * constants['whFuel'] + mDEF_g * constants['whDef']) /
+                     (mfuel_g * constants['wcFuel'] + mDEF_g*constants['wcDef']))
+
+    alpha.loc[~fuel_rate_positive] = ASTM_round(default_alpha, 3)  # for now, eventually probably: alpha.loc[fuel_rate_positive].mean()
 
     return alpha
 
@@ -210,13 +217,18 @@ def beta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
         beta, atomic oxygen-to-carbon ratio
 
     """
-    fuel_rate_negative = qmFuel_gph < 0
+    fuel_rate_positive = qmFuel_gph > 0
 
-    beta = (constants['MC_g/mol'] / constants['MO_g/mol'] *
-            (DEFMassFlowRate_Avg_gph * constants['woDef']) /
+    beta = (constants['MC_g/mol'] / constants['MO_g/mol'] * (DEFMassFlowRate_Avg_gph * constants['woDef']) /
             (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
 
-    beta.loc[fuel_rate_negative] = 0.03  # for now, eventually probably: beta.loc[~fuel_rate_negative].mean()
+    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
+    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
+
+    default_beta = (constants['MC_g/mol'] / constants['MO_g/mol'] * (mDEF_g * constants['woDef']) /
+            (mfuel_g * constants['wcFuel'] + mDEF_g * constants['wcDef']))
+
+    beta.loc[~fuel_rate_positive] = ASTM_round(default_beta, 2)  # for now, eventually probably: beta.loc[fuel_rate_positive].mean()
 
     return beta
 
@@ -236,13 +248,18 @@ def delta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
         delta, atomic nitrogen-to-carbon ratio
 
     """
-    fuel_rate_negative = qmFuel_gph < 0
+    fuel_rate_positive = qmFuel_gph > 0
 
-    delta = (constants['MC_g/mol'] / constants['MN_g/mol'] *
-        (DEFMassFlowRate_Avg_gph * constants['wnDef'])/
+    delta = (constants['MC_g/mol'] / constants['MN_g/mol'] * (DEFMassFlowRate_Avg_gph * constants['wnDef']) /
              (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
 
-    delta.loc[fuel_rate_negative] = 0.007  # for now, eventually probably: delta.loc[~fuel_rate_negative].mean()
+    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
+    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
+
+    default_delta = (constants['MC_g/mol'] / constants['MN_g/mol'] * (mDEF_g * constants['wnDef']) /
+                     (mfuel_g * constants['wcFuel'] + mDEF_g * constants['wcDef']))
+
+    delta.loc[~fuel_rate_positive] = ASTM_round(default_delta, 3)  # for now, eventually probably: delta.loc[fuel_rate_positive].mean()
 
     return delta
 
