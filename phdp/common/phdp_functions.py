@@ -365,6 +365,53 @@ def get_letters_from_index(index):
     return alpha_str
 
 
+def is_container(obj):
+    """
+    Checks if the given object is a non-string iterable, e.g. a container.
+
+    Parameters:
+        obj : Any type
+            The object to be checked.
+
+    Returns:
+        bool: True if the object is iterable, False otherwise.
+    """
+    from collections.abc import Iterable
+    return isinstance(obj, Iterable) and not isinstance(obj, str)
+
+
+def set_value_at(df, search_str, set_value=None):
+    """
+    Finds a given string in a DataFrame and set the value of the cell(s) next to it or return the row and
+    column number + 1 of the first occurrence
+
+    Parameters:
+        df (DataFrame): The input DataFrame.
+        search_str (str): The string to be searched for
+        set_value (obj, iterable): the value(s) to set next to the search_str, if found
+
+    Returns:
+        if set_value is None, returns a tuple containing the row and column number + 1 of the first occurrence of the
+         string, or raises and Exception if the string is not found
+
+    """
+
+    found = False
+    for row_index, row in df.iterrows():
+        for col_index, value in row.items():
+            if not found and str(value) == search_str:
+                found = True
+                if set_value is not None:
+                    if is_container(set_value):
+                        df.iloc[row_index, col_index+1:col_index+1+len(set_value)] = set_value[:]
+                    else:
+                        df.iloc[row_index, col_index+1] = set_value
+                else:
+                    return row_index, col_index+1
+    if not found:
+        raise Exception('"%s" not found in dataframe' % search_str)
+
+
 if __name__ == '__main__':
     try:
         pass

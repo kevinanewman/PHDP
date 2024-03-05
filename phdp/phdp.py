@@ -1052,8 +1052,17 @@ def run_phdp(runtime_options):
             print('done!')
 
             # create report header
-            report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8')
+            report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
             report_df = report_df.fillna('')
+
+            set_value_at(report_df, 'Test Cell', test_site)
+            set_value_at(report_df, 'Test Number', test_num)
+            set_value_at(report_df, 'Test Type', test_name)
+            set_value_at(report_df, 'Test Date',
+                         '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+
+            report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv',
+                             encoding='UTF-8', index=False, header=False)
 
             return results
 
