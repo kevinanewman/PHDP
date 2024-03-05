@@ -1051,6 +1051,10 @@ def run_phdp(runtime_options):
 
             print('done!')
 
+            # create report header
+            report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8')
+            report_df = report_df.fillna('')
+
             return results
 
     except:
