@@ -663,8 +663,8 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
     summary_results['avg_xNOxcorrected_μmol/mol'] = time_aligned_data['xNOxcorrected_μmol/mol'].mean()
     summary_results['avg_xTHCexh_μmol/mol'] = time_aligned_data['xTHCexh_μmol/mol'].mean()
     summary_results['avg_xCH4exh_μmol/mol'] = time_aligned_data['xCH4exh_μmol/mol'].mean()
-    summary_results['avg_xNMHCexh_μmol/mol'] = time_aligned_data['xNMHCexh_μmol/mol'].mean()
     summary_results['avg_xN2O_μmol/mol'] = time_aligned_data['conN2O_Avg_ppm'].mean()
+    summary_results['avg_xNMHCexh_μmol/mol'] = time_aligned_data['xNMHCexh_μmol/mol'].mean()
 
     SamplePeriod_s = constants['SamplePeriod_s']
 
@@ -679,9 +679,9 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
     summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g/sec'].sum() * SamplePeriod_s
     summary_results['mTHC_g'] = time_aligned_data['mTHC_g/sec'].sum() * SamplePeriod_s
     summary_results['mCH4_g'] = time_aligned_data['mCH4_g/sec'].sum() * SamplePeriod_s
-    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * SamplePeriod_s
-    summary_results['mNMHC+mNOx_g'] = summary_results['mNOx_g'] + summary_results['mNMHC_g']
     summary_results['mN2O_g'] = time_aligned_data['mN2O_g/sec'].sum() * SamplePeriod_s
+    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * SamplePeriod_s
+    summary_results['mNMHC_g+mNOx_g'] = summary_results['mNMHC_g'] + summary_results['mNOx_g']
 
     # calculate background mass grams
     from constants import constants
@@ -714,11 +714,19 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
         (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
          (THC_background_conc - CH4_background_conc * DiluteRFCH4_Fraction) / 10 ** 6)
 
+    summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = summary_results['mNMHCbkgrnd_g'] + summary_results['mNOxbkgrnd_g']
+
     # calculate net mass grams
     for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
         summary_results['m%snet_g' % component] = \
             (summary_results['m%s_g' % component] -
              summary_results['m%sbkgrnd_g' % component])
+
+    # handle NMHC + NOx net mass grams
+    summary_results['mNMHC+mNOxnet_g'] = summary_results['mNOxnet_g'] + summary_results['mNMHCnet_g']
+
+    # calculate brake-specific net mass
+    for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
         if summary_results['cycle_work_kWh'].item() > 0:
             summary_results['m%snet_g/kWh' % component] = (
                     summary_results['m%snet_g' % component] /
@@ -726,8 +734,12 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
         else:
             summary_results['m%snet_g/kWh' % component] = 0
 
-    # handle NMHC + NOx net mass grams
-    summary_results['mNMHC+mNOxnet_g'] = summary_results['mNOxnet_g'] + summary_results['mNMHCnet_g']
+    # handle brake-specific NMHC + NOx net mass grams
+    if summary_results['cycle_work_kWh'].item() > 0:
+        summary_results['mNMHCnet_g/kWh+mNOxnet_g/kWh'] = (
+                summary_results['mNMHCnet_g/kWh'] + summary_results['mNOxnet_g/kWh'])
+    else:
+        summary_results['mNMHCnet_g/kWh+mNOxnet_g/kWh'] = 0
 
     return summary_results
 
@@ -803,6 +815,8 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
             TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
                 'CycleAverageVehicleSpeed_m/s'].item()
 
+        calculations_1036['simulation_average_vehicle_speed_mps'] = simulation_average_vehicle_speed_mps
+
         calculations_1036['CycleAverageEngineWork_kWh'] = sum(
             drift_corrected_time_aligned_data['Power_kW'] * drift_corrected_time_aligned_data[
                 'VehicleMoving_Logical'] * (
@@ -867,15 +881,19 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
         calculations_1036['erC_rel_err_%_check'] = 'Pass'
 
     # limit from CFR 1065.543-1
-    if (abs(calculations_1036['eaC_g'].item()) >
-            ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.007, 3).item()):
+    calculations_1036['eaC_g_limit'] = (
+        ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.007, 3))
+
+    if abs(calculations_1036['eaC_g'].item()) > calculations_1036['eaC_g_limit'].item():
         calculations_1036['eaC_g_check'] = 'FAIL'
     else:
         calculations_1036['eaC_g_check'] = 'Pass'
 
     # limit from CFR 1065.543-1
-    if (abs(calculations_1036['eaCrate_g/h'].item()) >
-            ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.31, 3).item()):
+    calculations_1036['eaCrate_g/h_limit'] = (
+        ASTM_round(phdp_globals.test_data['MapResults']['EngPeakPower_kW'] * 0.31, 3))
+
+    if abs(calculations_1036['eaCrate_g/h'].item()) > calculations_1036['eaCrate_g/h_limit'].item():
         calculations_1036['eaCrate_g/h_check'] = 'FAIL'
     else:
         calculations_1036['eaCrate_g/h_check'] = 'Pass'
@@ -1051,18 +1069,8 @@ def run_phdp(runtime_options):
 
             print('done!')
 
-            # create report header
-            report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
-            report_df = report_df.fillna('')
-
-            set_value_at(report_df, 'Test Cell', test_site)
-            set_value_at(report_df, 'Test Number', test_num)
-            set_value_at(report_df, 'Test Type', test_name)
-            set_value_at(report_df, 'Test Date',
-                         '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
-
-            report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv',
-                             encoding='UTF-8', index=False, header=False)
+            generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
+                                      vehicle_test)
 
             return results
 
@@ -1070,6 +1078,94 @@ def run_phdp(runtime_options):
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
         print("### Check PHDP log for error messages ###")
         phdp_log.end_logfile("\nSession Fail")
+
+
+def generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site, vehicle_test):
+    for i in range(0, len(results['tadsummary'])):
+        # create report header
+        report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
+        report_df = report_df.fillna('')
+
+        set_value_at(report_df, 'Test Cell', test_site)
+        set_value_at(report_df, 'Test Number', test_num)
+        set_value_at(report_df, 'Test Type', test_name)
+        set_value_at(report_df, 'Test Date',
+                     '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+
+        set_value_at(report_df, 'Original Concentration', results['tadsummary'][i].iloc[0, 0:7].values)
+        set_value_at(report_df, 'Corrected Concentration', results['dctadsummary'][i].iloc[0, 0:7].values)
+        set_value_at(report_df, 'Original Mass', results['tadsummary'][i].iloc[0, 9:17].values)
+
+        set_value_at(report_df, 'Corrected Mass', results['dctadsummary'][i].iloc[0, 9:17].values)
+        set_value_at(report_df, 'Original Background Mass', results['tadsummary'][i].iloc[0, 17:25].values)
+        set_value_at(report_df, 'Corrected Background Mass', results['dctadsummary'][i].iloc[0, 17:25].values)
+
+        original_net_mass = results['tadsummary'][i].iloc[0, 25:33].values
+        corrected_net_mass = results['dctadsummary'][i].iloc[0, 25:33].values
+        net_mass_drift_check_pct = (original_net_mass - corrected_net_mass) / original_net_mass * 100
+
+        set_value_at(report_df, 'Original Net Mass', original_net_mass)
+        set_value_at(report_df, 'Corrected Net Mass', corrected_net_mass)
+        set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
+
+        # TODO: PM calculations
+        set_value_at(report_df, 'Total PM Mass', None)
+        set_value_at(report_df, 'BSPM', None)
+
+        set_value_at(report_df, 'Cycle Work', results['tadsummary'][i]['cycle_work_kWh'])
+        set_value_at(report_df, 'Total Dilution Flow', results['tadsummary'][i]['total_dilute_flow_mol'])
+
+        original_brake_specific_emissions = results['tadsummary'][i].iloc[0, 33:41].values
+        corrected_brake_specific_emissions = results['dctadsummary'][i].iloc[0, 33:41].values
+        brake_specific_emissions_drift_check_pct = (
+                (original_brake_specific_emissions - corrected_brake_specific_emissions) /
+                original_brake_specific_emissions * 100)
+
+        set_value_at(report_df, 'Original Brake Specific Emissions', original_brake_specific_emissions)
+        set_value_at(report_df, 'Corrected Brake Specific Emissions', corrected_brake_specific_emissions)
+        set_value_at(report_df, 'Brake Specific Emissions Drift Check %', brake_specific_emissions_drift_check_pct)
+
+        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'])
+        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'])
+        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'])
+
+        set_value_at(report_df, 'ϵaC', '±%.3f' % results['1036_calculations'][i]['eaC_g_limit'].iloc[0],
+                     col_offset=2)
+        set_value_at(report_df, 'ϵaCrate', '±%.3f' % results['1036_calculations'][i]['eaCrate_g/h_limit'].iloc[0],
+                     col_offset=2)
+
+        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%_check'],
+                     col_offset=3)
+        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g_check'],
+                     col_offset=3)
+        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h_check'],
+                     col_offset=3)
+
+        set_value_at(report_df, 'CO2 Energy_corr', results['1036_calculations'][i]['CO2 Energy_Corr g/kWh'],
+                     col_offset=2)
+        set_value_at(report_df, 'mfuelcor', results['1036_calculations'][i]['mfuelcor_meas'])
+        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'])
+
+        if vehicle_test:
+            set_value_at(report_df, 'Simulation Average Vehicle Speed',
+                         results['1036_calculations'][i]['simulation_average_vehicle_speed_mps'], col_offset=2)
+            set_value_at(report_df, 'CycleAverageEngineWork',
+                         results['1036_calculations'][i]['CycleAverageEngineWork_kWh'], col_offset=2)
+            set_value_at(report_df, 'CycleAverageIdleSpeed',
+                         results['1036_calculations'][i]['CycleAverageIdleSpeed_rpm'], col_offset=2)
+            set_value_at(report_df, 'CycleAverageIdleTorque',
+                         results['1036_calculations'][i]['CycleAverageTorque_Nm'], col_offset=2)
+            set_value_at(report_df, 'EngineToVehicleSpeedRatio',
+                         results['1036_calculations'][i]['EngineToVehicleSpeedRatio_rev/mi'], col_offset=2)
+        else:
+            set_value_at(report_df, 'Simulation Average Vehicle Speed', 'NA', col_offset=2)
+            set_value_at(report_df, 'CycleAverageEngineWork', 'NA', col_offset=2)
+            set_value_at(report_df, 'CycleAverageIdleSpeed', 'NA', col_offset=2)
+            set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
+            set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
+
+        report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + '%d-report.csv' % i,
+                         encoding='UTF-8', index=False, header=False)
 
 
 if __name__ == "__main__":
