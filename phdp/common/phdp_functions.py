@@ -380,16 +380,20 @@ def is_container(obj):
     return isinstance(obj, Iterable) and not isinstance(obj, str)
 
 
-def set_value_at(df, search_str, set_value=None, col_offset=1):
+def set_value_at(df, search_str, set_value=None, col_offset=1, small_float_format='%.4f', large_float_format='%.3f',
+                 large_cutoff=100):
     """
     Finds a given string in a DataFrame and set the value of the cell(s) next to it or return the row and
-    column number + 1 of the first occurrence
+    column index + col_offset of the first occurrence
 
     Parameters:
         df (DataFrame): The input DataFrame.
         search_str (str): The string to be searched for
         set_value (obj, iterable): the value(s) to set next to the search_str, if found
         col_offset (int): the column offset from the search target cell to the target value cell
+        small_float_format (str): format string for "small" floating point numbers
+        large_float_format (str): format string for "large" floating point numbers
+        large_cutoff (numeric): numeric cutoff for using large float format
 
     Returns:
         if set_value is None, returns a tuple containing the row and column number + 1 of the first occurrence of the
@@ -404,11 +408,18 @@ def set_value_at(df, search_str, set_value=None, col_offset=1):
                 found = True
                 if set_value is not None:
                     if is_container(set_value):
-                        df.iloc[row_index, col_index+col_offset:col_index+col_offset+len(set_value)] = set_value[:]
+                        for idx, v in enumerate(set_value):
+                            if type(v) is not str:
+                                if v >= large_cutoff:
+                                    df.iloc[row_index, col_index + col_offset + idx] = large_float_format % v
+                                else:
+                                    df.iloc[row_index, col_index + col_offset + idx] = small_float_format % v
+                            else:
+                                df.iloc[row_index, col_index + col_offset + idx] = v
                     else:
-                        df.iloc[row_index, col_index+col_offset] = set_value
+                        df.iloc[row_index, col_index + col_offset] = set_value
                 else:
-                    return row_index, col_index+col_offset
+                    return row_index, col_index + col_offset
     if not found:
         raise Exception('"%s" not found in dataframe' % search_str)
 
