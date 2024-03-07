@@ -1067,10 +1067,10 @@ def run_phdp(runtime_options):
                 phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
                 encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            print('done!')
-
             generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
                                       vehicle_test)
+
+            print('done!')
 
             return results
 
@@ -1165,7 +1165,7 @@ def generate_transient_report(output_prefix, results, test_datetime, test_name, 
             set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
 
         report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + '%d-report.csv' % i,
-                         encoding='UTF-8', index=False, header=False)
+                         encoding='UTF-8', index=False, header=False, float_format='%.1g')
 
 
 if __name__ == "__main__":
