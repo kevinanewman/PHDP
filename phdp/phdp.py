@@ -1067,7 +1067,7 @@ def run_phdp(runtime_options):
                 phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
                 encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
+            generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num, test_site,
                                       vehicle_test)
 
             print('done!')
@@ -1080,15 +1080,26 @@ def run_phdp(runtime_options):
         phdp_log.end_logfile("\nSession Fail")
 
 
-def generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site, vehicle_test):
+def generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num, test_site, vehicle_test):
     for i in range(0, len(results['tadsummary'])):
+        emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+
         # create report header
         report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
         report_df = report_df.fillna('')
 
         set_value_at(report_df, 'Test Cell', test_site)
         set_value_at(report_df, 'Test Number', test_num)
-        set_value_at(report_df, 'Test Type', test_name)
+        set_value_at(report_df, 'Test Type', test_type)
+
+        if max([results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+                for i in range(len(results['tadsummary']))] )> 1:
+            set_value_at(report_df, 'Cycle ID', '%s' %
+                         phdp_globals.test_data['TestResults%d' % emissions_cycle_number]['CycleName'].iloc[0])
+        else:
+            set_value_at(report_df, 'Cycle ID', '%s' %
+                         phdp_globals.test_data['TestResults']['CycleName'].iloc[0])
+
         set_value_at(report_df, 'Test Date',
                      '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
 
@@ -1164,7 +1175,8 @@ def generate_transient_report(output_prefix, results, test_datetime, test_name, 
             set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
             set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
 
-        report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + '%d-report.csv' % i,
+        report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
+                         '%d-report.csv' % emissions_cycle_number,
                          encoding='UTF-8', index=False, header=False, float_format='%.1g')
 
 
