@@ -1069,7 +1069,8 @@ def run_phdp(runtime_options):
 
             print('done!')
 
-            generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
+            if test_type == 'transient':
+                generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
                                       vehicle_test)
 
             return results
