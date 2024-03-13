@@ -557,7 +557,7 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
 
     xrefzero = 0
 
-    signal, type, unit = signal_name.split('_')
+    signal, signal_type, unit = signal_name.split('_')
 
     if signal.startswith('conRaw'):
         component = signal.replace('conRaw', '')
