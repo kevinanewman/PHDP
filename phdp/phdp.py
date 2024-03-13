@@ -1068,8 +1068,8 @@ def run_phdp(runtime_options):
                 encoding=phdp_globals.options.output_encoding, errors='replace')
 
             if test_type == 'transient':
-                generate_transient_report(output_prefix, results, test_datetime, test_name, test_num, test_site,
-                                      vehicle_test)
+                generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num,
+                                          test_site, vehicle_test)
 
             print('done!')
 
@@ -1081,7 +1081,23 @@ def run_phdp(runtime_options):
         phdp_log.end_logfile("\nSession Fail")
 
 
-def generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num, test_site, vehicle_test):
+def generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num, test_site,
+                              vehicle_test):
+    """
+
+    Args:
+        output_prefix:
+        results:
+        test_datetime:
+        test_type:
+        test_name:
+        test_num:
+        test_site:
+        vehicle_test:
+
+    Returns:
+
+    """
     for i in range(0, len(results['tadsummary'])):
         emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
 
