@@ -326,21 +326,21 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
 
         # 1065.655-14
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawHCO', 'ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conLCO', 'ResidualH2O_%vol'].item()
 
         time_aligned_data['xCOdry_μmol/mol'] = \
             time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol / 100)
 
         # 1065.655-15
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawCO2', 'ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conCO2', 'ResidualH2O_%vol'].item()
 
         time_aligned_data['xCO2dry_%'] = \
             time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol / 100)
 
         # 1065.655-16
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['InputName'] == 'conRawNOX', 'ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['InputName'] == 'conNOX', 'ResidualH2O_%vol'].item()
         time_aligned_data['xNOdry_μmol/mol'] = \
             time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
 
