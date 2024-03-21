@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(path, '..'))  # picks up omega_model sub-package
 
 from phdp import *
 from constants import constants
-
+import test_sites
 
 def init_phdp(runtime_options):
     """
@@ -136,7 +136,9 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
         Dataframe of time-aligned data
 
     """
-    from test_sites import test_sites
+    from test_sites import site_info
+
+    test_sites.init_site_info(test_site)
 
     SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
 
@@ -144,13 +146,14 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
 
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
 
-    for source in test_sites[test_site]['signals_and_delays'].keys():
-        for signal in test_sites[test_site]['signals_and_delays'][source]:
-            delay_s = test_sites[test_site]['signals_and_delays'][source][signal]
-            delay_samples = round(delay_s / SamplePeriod_s)
-            time_aligned_data = pd.concat([time_aligned_data,
-                                           pd.DataFrame({signal: phdp_globals.test_data[source][signal]
-                                                        .iloc[delay_samples:].values})], axis=1)
+    for source in site_info[test_site]['signals_and_delays'].keys():
+        for signal in site_info[test_site]['signals_and_delays'][source]:
+            delay_s = site_info[test_site]['signals_and_delays'][source][signal]
+            if delay_s is not None:
+                delay_samples = round(delay_s / SamplePeriod_s)
+                time_aligned_data = pd.concat([time_aligned_data,
+                                               pd.DataFrame({signal: phdp_globals.test_data[source][signal]
+                                                            .iloc[delay_samples:].values})], axis=1)
     time_aligned_data = \
         (time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].
          reset_index(drop=True))
