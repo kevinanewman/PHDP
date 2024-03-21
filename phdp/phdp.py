@@ -929,7 +929,7 @@ def run_phdp(runtime_options):
             if test_name in ('FTP', 'LLC'):
                 test_type = 'transient'
                 sampled_crank = True
-            elif test_name in ('GHGTRNS', 'RMC'):
+            elif test_name in ('GHGTRNS', 'RMC', 'GHGCRSE'):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
