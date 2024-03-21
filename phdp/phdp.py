@@ -121,7 +121,7 @@ def load_data(test_site):
                 phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
 
 
-def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number):
+def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number, min_mode_number):
     """
     Time-align continuous data, add Vehicle Moving from cycle definition
 
@@ -130,6 +130,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
         sampled_crank (bool): ``True`` if test has sampled engine cranking and startup
         emissions_cycle_number (int): emissions cycle number to process
+        min_mode_number (int): the starting mode number of the data
 
     Returns:
         Dataframe of time-aligned data
@@ -170,7 +171,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     if sampled_crank:
         test_start_index = time_aligned_data[time_aligned_data['EngDynoMode'] == 'Starting'].index[0]
     else:
-        test_start_index = 0
+        test_start_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] >= min_mode_number].index[0]
 
     time_aligned_data = time_aligned_data.drop('EngDynoMode', axis=1)  # can't have strings in the tad
 
@@ -926,10 +927,15 @@ def run_phdp(runtime_options):
             test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
 
             sampled_crank = False
+            min_mode_number = 0
+
             if test_name in ('FTP', 'LLC'):
                 test_type = 'transient'
                 sampled_crank = True
-            elif test_name in ('GHGTRNS', 'RMC', 'GHGCRSE'):
+            elif test_name == 'RMC':
+                test_type = 'transient'
+                min_mode_number = 1
+            elif test_name in ('GHGTRNS', 'GHGCRSE'):
                 test_type = 'transient'
             else:
                 test_type = 'modal'
@@ -950,7 +956,7 @@ def run_phdp(runtime_options):
             if test_type == 'transient':
                 emissions_cycles = \
                     [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
-                     if ecn > 0]
+                     if ecn >= 1]
             else:
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
@@ -961,7 +967,7 @@ def run_phdp(runtime_options):
                 if test_type == 'transient':
                     emissions_cycle_number = ecn
                     time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
-                                                                   emissions_cycle_number)
+                                                                   emissions_cycle_number, min_mode_number)
                 else:
                     emissions_cycle_number = 1
                     mode_number = ecn
