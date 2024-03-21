@@ -1111,11 +1111,14 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
 
         if max([results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
                 for i in range(len(results['tadsummary']))] )> 1:
-            set_value_at(report_df, 'Cycle ID', '%s' %
-                         phdp_globals.test_data['TestResults%d' % emissions_cycle_number]['CycleName'].iloc[0])
+            cycle_name = phdp_globals.test_data['TestDetails'].loc[
+                phdp_globals.test_data['TestDetails']['EmissionsCycleNumber_Integer'] == emissions_cycle_number,
+                'CycleName'].item()
+
+            set_value_at(report_df, 'Cycle ID', '%s' % cycle_name)
         else:
             set_value_at(report_df, 'Cycle ID', '%s' %
-                         phdp_globals.test_data['TestResults']['CycleName'].iloc[0])
+                         phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
 
         set_value_at(report_df, 'Test Date',
                      '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
