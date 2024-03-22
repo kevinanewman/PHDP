@@ -1208,7 +1208,7 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
 
         report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
                          '%d-report.csv' % emissions_cycle_number,
-                         encoding='UTF-8', index=False, header=False, float_format='%.1g')
+                         encoding='UTF-8', index=False, header=False)
 
 
 def generate_modal_report(output_prefix, results, test_datetime, test_type, test_num, test_site,
@@ -1285,16 +1285,18 @@ def generate_modal_report(output_prefix, results, test_datetime, test_type, test
         set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'], col_offset=mode_number)
         set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'], col_offset=mode_number)
 
-        set_value_at(report_df, 'ϵrC Limit', 2, col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC Limit', results['1036_calculations'][i]['eaC_g_limit'], col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate Limit', results['1036_calculations'][i]['eaCrate_g/h_limit'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵrC Limit', '±2', col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC Limit', '±%.3f' % results['1036_calculations'][i]['eaC_g_limit'].iloc[0],
+                     col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate Limit', '±%.3f' % results['1036_calculations'][i]['eaCrate_g/h_limit'].iloc[0],
+                     col_offset=mode_number)
 
         set_value_at(report_df, 'ϵrC Check', results['1036_calculations'][i]['erC_rel_err_%_check'], col_offset=mode_number)
         set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'], col_offset=mode_number)
         set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'], col_offset=mode_number)
 
     report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
-                     index=False, header=False, float_format='%.1g')
+                     index=False, header=False)
 
 
 if __name__ == "__main__":
