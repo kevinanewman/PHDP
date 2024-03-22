@@ -1079,6 +1079,9 @@ def run_phdp(runtime_options):
             if test_type == 'transient':
                 generate_transient_report(output_prefix, results, test_datetime, test_type, test_num,
                                           test_site, vehicle_test)
+            else:
+                generate_modal_report(output_prefix, results, test_datetime, test_type, test_num,
+                                          test_site, vehicle_test)
 
             print('done!')
 
@@ -1206,6 +1209,92 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
         report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
                          '%d-report.csv' % emissions_cycle_number,
                          encoding='UTF-8', index=False, header=False, float_format='%.1g')
+
+
+def generate_modal_report(output_prefix, results, test_datetime, test_type, test_num, test_site,
+                              vehicle_test):
+    """
+
+    Args:
+        output_prefix:
+        results:
+        test_datetime:
+        test_type:
+        test_num:
+        test_site:
+        vehicle_test:
+
+    Returns:
+
+    """
+
+    # create report header
+    report_df = pd.read_csv(path + os.sep + 'modal_report_template.csv', encoding='UTF-8', header=None)
+    report_df = report_df.fillna('')
+
+    set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+    set_value_at(report_df, 'Test Cell', test_site)
+    set_value_at(report_df, 'Test Number', test_num)
+    set_value_at(report_df, 'Test Type', test_type)
+    set_value_at(report_df, 'Cycle ID', '%s' % phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
+
+    for i in range(0, len(results['dctadsummary'])):
+        mode_number = results['dctadsummary'][i]['ModeNumber_Integer'].iloc[0]
+        col_offset = mode_number + 1
+
+        if mode_number > 4:
+            # extend report_df
+            report_df.insert(mode_number+5, ' ' * mode_number, '')
+
+        set_value_at(report_df, 'Mode', mode_number, col_offset=col_offset)
+
+        set_value_at(report_df, 'CVS CO2', results['dctadsummary'][i]['mCO2_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS CO', results['dctadsummary'][i]['mCO_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS NOX', results['dctadsummary'][i]['mNOx_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS HC', results['dctadsummary'][i]['mTHC_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS CH4', results['dctadsummary'][i]['mCH4_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS N2O', results['dctadsummary'][i]['mN2O_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS NMHC', results['dctadsummary'][i]['mNMHC_g'], col_offset=col_offset)
+        set_value_at(report_df, 'CVS NMHC+NOx', results['dctadsummary'][i]['mNMHC_g+mNOx_g'], col_offset=col_offset)
+
+        set_value_at(report_df, 'Background CO2', results['dctadsummary'][i]['mCO2bkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background CO', results['dctadsummary'][i]['mCObkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background NOX', results['dctadsummary'][i]['mNOxbkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background HC', results['dctadsummary'][i]['mTHCbkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background CH4', results['dctadsummary'][i]['mCH4bkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background N2O', results['dctadsummary'][i]['mN2Obkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background NMHC', results['dctadsummary'][i]['mNMHCbkgrnd_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Background NMHC+NOx', results['dctadsummary'][i]['mNMHCbkgrnd_g+mNOxbkgrnd_g'], col_offset=col_offset)
+
+        set_value_at(report_df, 'Net CO2', results['dctadsummary'][i]['mCO2net_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net CO', results['dctadsummary'][i]['mCOnet_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net NOX', results['dctadsummary'][i]['mNOxnet_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net HC', results['dctadsummary'][i]['mTHCnet_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net CH4', results['dctadsummary'][i]['mCH4net_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net N2O', results['dctadsummary'][i]['mN2Onet_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net NMHC', results['dctadsummary'][i]['mNMHCnet_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'], col_offset=col_offset)
+
+        set_value_at(report_df, 'Mode Time', results['dctad'][i]['SampleTime_s'], col_offset=col_offset)
+        set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'], col_offset=col_offset)
+
+        set_value_at(report_df, 'mfuelcor_meas', results['1036_calculations'][i]['mfuelcor_meas'], col_offset=col_offset)
+        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'], col_offset=col_offset)
+
+        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'], col_offset=mode_number)
+
+        set_value_at(report_df, 'ϵrC Limit', 2, col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC Limit', results['1036_calculations'][i]['eaC_g_limit'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate Limit', results['1036_calculations'][i]['eaCrate_g/h_limit'], col_offset=mode_number)
+
+        set_value_at(report_df, 'ϵrC Check', results['1036_calculations'][i]['erC_rel_err_%_check'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'], col_offset=mode_number)
+
+    report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
+                     index=False, header=False, float_format='%.1g')
 
 
 if __name__ == "__main__":
