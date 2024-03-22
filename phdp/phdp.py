@@ -727,7 +727,7 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
              summary_results['m%sbkgrnd_g' % component])
 
     # handle NMHC + NOx net mass grams
-    summary_results['mNMHC+mNOxnet_g'] = summary_results['mNOxnet_g'] + summary_results['mNMHCnet_g']
+    summary_results['mNMHCnet_g+mNOxnet_g'] = + summary_results['mNMHCnet_g'] + summary_results['mNOxnet_g']
 
     # calculate brake-specific net mass
     for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
