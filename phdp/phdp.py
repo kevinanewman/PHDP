@@ -1077,7 +1077,7 @@ def run_phdp(runtime_options):
                 encoding=phdp_globals.options.output_encoding, errors='replace')
 
             if test_type == 'transient':
-                generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num,
+                generate_transient_report(output_prefix, results, test_datetime, test_type, test_num,
                                           test_site, vehicle_test)
 
             print('done!')
@@ -1090,7 +1090,7 @@ def run_phdp(runtime_options):
         phdp_log.end_logfile("\nSession Fail")
 
 
-def generate_transient_report(output_prefix, results, test_datetime, test_type, test_name, test_num, test_site,
+def generate_transient_report(output_prefix, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test):
     """
 
@@ -1099,7 +1099,6 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
         results:
         test_datetime:
         test_type:
-        test_name:
         test_num:
         test_site:
         vehicle_test:
@@ -1113,6 +1112,9 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
         # create report header
         report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
         report_df = report_df.fillna('')
+
+        set_value_at(report_df, 'Test Date',
+                     '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
 
         set_value_at(report_df, 'Test Cell', test_site)
         set_value_at(report_df, 'Test Number', test_num)
@@ -1128,9 +1130,6 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
         else:
             set_value_at(report_df, 'Cycle ID', '%s' %
                          phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
-
-        set_value_at(report_df, 'Test Date',
-                     '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
 
         set_value_at(report_df, 'Original Concentration', results['tadsummary'][i].iloc[0, 0:7].values)
         set_value_at(report_df, 'Corrected Concentration', results['dctadsummary'][i].iloc[0, 0:7].values)
