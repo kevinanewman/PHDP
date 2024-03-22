@@ -146,9 +146,9 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
 
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
 
-    for source in site_info[test_site]['signals_and_delays'].keys():
-        for signal in site_info[test_site]['signals_and_delays'][source]:
-            delay_s = site_info[test_site]['signals_and_delays'][source][signal]
+    for source in site_info['signals_and_delays'].keys():
+        for signal in site_info['signals_and_delays'][source]:
+            delay_s = site_info['signals_and_delays'][source][signal]
             if delay_s is not None:
                 delay_samples = round(delay_s / SamplePeriod_s)
                 time_aligned_data = pd.concat([time_aligned_data,
