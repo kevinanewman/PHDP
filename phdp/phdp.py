@@ -1295,6 +1295,27 @@ def generate_modal_report(output_prefix, results, test_datetime, test_type, test
         set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'], col_offset=mode_number)
         set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'], col_offset=mode_number)
 
+    if 'WeightingFactor_Fraction' in phdp_globals.test_data['CycleDefinition']:
+        weighted_power = 0
+        for i in range(0, len(results['dctadsummary'])):
+            weight = phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i]
+            set_value_at(report_df, 'Weighting Factor', weight, col_offset=i+2)
+            weighted_power += results['dctad'][i]['Power_kW'] * weight
+
+        set_value_at(report_df, 'Power (kW)', weighted_power)
+
+        # calculate weighted values
+        for idx, signal in enumerate(('CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC')):
+            weighted_mass_emissions = 0
+            for i in range(0, len(results['dctadsummary'])):
+                weighted_mass_emissions += (
+                        results['dctadsummary'][i]['m%s_g' % signal] *
+                        phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i] /
+                        results['dctad'][i]['SampleTime_s'] * 3600)
+            weighted_specific_emissions = weighted_mass_emissions / weighted_power
+            set_value_at(report_df, 'Mass Emissions (g/h)', weighted_mass_emissions, col_offset=idx + 1)
+            set_value_at(report_df, 'Specific Emsissions (g/kWh)', weighted_specific_emissions, col_offset=idx + 1)
+
     report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
                      index=False, header=False)
 
