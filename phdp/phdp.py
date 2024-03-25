@@ -96,19 +96,17 @@ def load_data(test_site):
         test_site (str): test site ID, e.g. 'HD02'
 
     """
-    # # read the Horiba file (not used for now)
-    # phdp_log.logwrite('reading %s...' % phdp_globals.options.horiba_file)
-    # unitized_columns = get_unitized_columns(phdp_globals.options.horiba_file, sheet_name='ContinuousData1')
-    # phdp_globals.test_data['horiba_data'] = \
-    #     pd.read_excel(phdp_globals.options.horiba_file, names=unitized_columns, header=1, skiprows=0,
-    #                   sheet_name='ContinuousData1')
+    required_file_names = ('BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
+                           'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
+                           'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
+                           'drift_corrected_BagData')
 
-    # read in the rest of the files just in case
     os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
     input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
     for input_file in input_files:
         file_name = input_file.rsplit('.', 2)[-2]
-        if file_name != 'Processing':
+
+        if file_name in required_file_names and file_name != 'Processing':
             phdp_log.logwrite('reading %s...' % input_file)
             if 'tad' not in file_name:
                 unitized_columns = get_unitized_columns(input_file, encoding=phdp_globals.options.encoding[test_site])
