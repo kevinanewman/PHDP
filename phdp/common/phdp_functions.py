@@ -409,7 +409,7 @@ def set_value_at(df, search_str, set_value=None, col_offset=1, small_float_forma
                 if set_value is not None:
                     if is_container(set_value):
                         for idx, v in enumerate(set_value):
-                            if type(v) is not str:
+                            if v is not None and type(v) is not str:
                                 if v >= large_cutoff:
                                     df.iloc[row_index, col_index + col_offset + idx] = large_float_format % v
                                 else:

@@ -294,12 +294,13 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
         time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
 
 
-def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_corrected=False):
+def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number, drift_corrected=False):
     """
     Iterate the chemical balance equations
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
+        calc_mode (str): 'raw' or 'dilute'
         emissions_cycle_number (int): emissions cycle number to process
         drift_corrected (bool): use drift-correct background if ``True``
 
@@ -307,11 +308,18 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
         Nothing, updates time_aligned_data
 
     """
+    if calc_mode == 'raw':
+        ctype = 'conRaw'
+        COrange = 'H'
+    else:
+        ctype = 'con'
+        COrange = 'L'
+
     time_aligned_data['xDil/Exh_mol/mol'] = 0.8
     time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
     time_aligned_data['xCcombdry_mol/mol'] = \
-        time_aligned_data['conCO2_Avg_%vol'] / 100 + (time_aligned_data['conTHC_Avg_ppmC'] +
-                                                      time_aligned_data['conLCO_Avg_ppm']) / 1e6
+        time_aligned_data['%sCO2_Avg_%%vol' % ctype] / 100 + (time_aligned_data['%sTHC_Avg_ppmC' % ctype] +
+                                                      time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)]) / 1e6
     time_aligned_data['xH2dry_μmol/mol'] = 0
     time_aligned_data['xint/exhdry_mol/mol'] = 0
     time_aligned_data_prior = pd.DataFrame()
@@ -328,27 +336,28 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
 
         # 1065.655-14
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['InputName'] == 'conLCO', 'ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['InputName'] == '%s%sCO' % (ctype, COrange),
+            'ResidualH2O_%vol'].item()
 
         time_aligned_data['xCOdry_μmol/mol'] = \
-            time_aligned_data['conLCO_Avg_ppm'] / (1 - residual_H2O_pctvol / 100)
+            time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)] / (1 - residual_H2O_pctvol / 100)
 
         # 1065.655-15
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
             phdp_globals.test_data['EmsComponents']['InputName'] == 'conCO2', 'ResidualH2O_%vol'].item()
 
         time_aligned_data['xCO2dry_%'] = \
-            time_aligned_data['conCO2_Avg_%vol'] / (1 - residual_H2O_pctvol / 100)
+            time_aligned_data['%sCO2_Avg_%%vol' % ctype] / (1 - residual_H2O_pctvol / 100)
 
         # 1065.655-16
         residual_H2O_pctvol = phdp_globals.test_data['EmsComponents'].loc[
             phdp_globals.test_data['EmsComponents']['InputName'] == 'conNOX', 'ResidualH2O_%vol'].item()
         time_aligned_data['xNOdry_μmol/mol'] = \
-            time_aligned_data['conNOX_Avg_ppm'] * 0.75 / (1 - residual_H2O_pctvol / 100)
+            time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.75 / (1 - residual_H2O_pctvol / 100)
 
         # 1065.655-17
         time_aligned_data['xNO2dry_μmol/mol'] = \
-            time_aligned_data['conNOX_Avg_ppm'] * 0.25 / (1 - residual_H2O_pctvol / 100)
+            time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.25 / (1 - residual_H2O_pctvol / 100)
 
         if not drift_corrected:
             BagData = phdp_globals.test_data['BagData']
@@ -386,7 +395,7 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
 
         # 1065.655-18
         time_aligned_data['xTHCdry_μmol/mol'] = \
-            time_aligned_data['conTHC_Avg_ppmC'] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
+            time_aligned_data['%sTHC_Avg_ppmC' % ctype] / (1 - time_aligned_data['xH2Oexh_mol/mol'])
 
         time_aligned_data['xraw/exhdry_mol/mol'] = CFR1065.rawexhdry(time_aligned_data)
 
@@ -427,18 +436,38 @@ def iterate_chemical_balance(time_aligned_data, emissions_cycle_number, drift_co
         print()
 
 
-def post_chemical_balance_calculations(time_aligned_data):
+def post_chemical_balance_calculations(time_aligned_data, calc_mode):
     """
     Calculate values after chemical balance iteration
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
+        calc_mode (str): 'raw' or 'dilute'
 
     Returns:
         Nothing, updates time_aligned_data
 
     """
     from constants import constants
+
+    # CFR 1065.640-9
+    time_aligned_data['Mmix_intake_g/mol'] = \
+        constants['Mair_g/mol'] * (1 - time_aligned_data['xH2Oint_mol/mol']) + \
+        constants['MH2O_g/mol'] * time_aligned_data['xH2Oint_mol/mol']
+
+    time_aligned_data['nint_mol/sec'] = \
+        time_aligned_data['qmIntakeAir_Avg_kg/h'] / 3.6 / time_aligned_data['Mmix_intake_g/mol']
+
+    # CFR 1065.655-26
+    time_aligned_data['nexh_mol/sec'] = \
+        (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
+        (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
+        time_aligned_data['nint_mol/sec']
+
+    if calc_mode == 'raw':
+        flow_mol_per_sec = time_aligned_data['nexh_mol/sec']
+    else:
+        flow_mol_per_sec = time_aligned_data['CVSFlow_mol/s']
 
     # CFR 1065.659-1
     xH2OCO2dilmeas = phdp_globals.test_data['EmsComponents'].loc[
@@ -490,50 +519,37 @@ def post_chemical_balance_calculations(time_aligned_data):
 
     # CFR 1065.650-5
     time_aligned_data['mCO2_g/sec'] = \
-        time_aligned_data['xCO2exh_%mol'] / 100 * constants['MCO2_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        time_aligned_data['xCO2exh_%mol'] / 100 * constants['MCO2_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mCO_g/sec'] = \
-        time_aligned_data['xCOexh_μmol/mol'] / 1e6 * constants['MCO_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        time_aligned_data['xCOexh_μmol/mol'] / 1e6 * constants['MCO_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mCH4_g/sec'] = \
-        time_aligned_data['xCH4exh_μmol/mol'] / 1e6 * constants['MCH4_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        time_aligned_data['xCH4exh_μmol/mol'] / 1e6 * constants['MCH4_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mTHC_g/sec'] = \
-        time_aligned_data['xTHCexh_μmol/mol'] / 1e6 * constants['MTHC_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        time_aligned_data['xTHCexh_μmol/mol'] / 1e6 * constants['MTHC_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mNMHC_g/sec'] = \
-        time_aligned_data['xNMHCexh_μmol/mol'] / 1e6 * constants['MNMHC_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        time_aligned_data['xNMHCexh_μmol/mol'] / 1e6 * constants['MNMHC_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mNOxuncorrected_g/sec'] = \
         (time_aligned_data['xNOexh_μmol/mol'] + time_aligned_data['xNO2exh_μmol/mol']) / 1e6 * \
-        constants['MNOx_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        constants['MNOx_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mNOxcorrected_g/sec'] = \
         (time_aligned_data['xNOxcorrected_μmol/mol']) / 1e6 * \
-        constants['MNOx_g/mol'] * time_aligned_data['CVSFlow_mol/s']
+        constants['MNOx_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.650-5
     time_aligned_data['mN2O_g/sec'] = \
-        time_aligned_data['conN2O_Avg_ppm'] / 1e6 * constants['MN2O_g/mol'] * time_aligned_data['CVSFlow_mol/s']
-
-    # CFR 1065.640-9
-    time_aligned_data['Mmix_intake_g/mol'] = \
-        constants['Mair_g/mol'] * (1 - time_aligned_data['xH2Oint_mol/mol']) + \
-        constants['MH2O_g/mol'] * time_aligned_data['xH2Oint_mol/mol']
-    time_aligned_data['nint_mol/sec'] = \
-        time_aligned_data['qmIntakeAir_Avg_kg/h'] / 3.6 / time_aligned_data['Mmix_intake_g/mol']
-
-    # CFR 1065.655-26
-    time_aligned_data['nexh_mol/sec'] = \
-        (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
-        (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
-        time_aligned_data['nint_mol/sec']
+        time_aligned_data['conN2O_Avg_ppm'] / 1e6 * constants['MN2O_g/mol'] * flow_mol_per_sec
 
     # CFR 1065.667(C)
     time_aligned_data['ndil_mol/sec'] = time_aligned_data['CVSFlow_mol/s'] - time_aligned_data['nexh_mol/sec']
@@ -642,14 +658,14 @@ def drift_correct_bag_data(bag_data, idx):
             (xprespan + xpostspan) - (xprezero + xpostzero))
 
 
-def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, drift_corrected=False):
+def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, drift_corrected=False):
     """
     Calculate summary results for the given time aligned data
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
+        calc_mode (str): 'raw' or 'dilute'
         emissions_cycle_number (int): emissions cycle number to process
-        test_type (str): 'transient' or 'modal'
         drift_corrected (bool): use drift-correct background if ``True``
 
     Returns:
@@ -693,36 +709,46 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
     else:
         BagData = phdp_globals.test_data['drift_corrected_BagData']
 
-    for background_component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O']:
-        background_conc = (
-            BagData.loc[(BagData['RbComponent'] == str.upper(background_component)) &
+    if calc_mode == 'dilute':
+        # perform background emissions for dilute calcs
+        for background_component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O']:
+            background_conc = (
+                BagData.loc[(BagData['RbComponent'] == str.upper(background_component)) &
+                            (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+            summary_results['m%sbkgrnd_g' % background_component] = (
+                    summary_results['total_dilute_flow_mol'] *
+                    constants['M%s_g/mol' % background_component] *
+                    background_conc / 10 ** 6)
+
+        # handle NMHC mass grams
+        THC_background_conc = (
+            BagData.loc[(BagData['RbComponent'] == 'THC') &
                         (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
-        summary_results['m%sbkgrnd_g' % background_component] = (
-                summary_results['total_dilute_flow_mol'] *
-                constants['M%s_g/mol' % background_component] *
-                background_conc / 10 ** 6)
 
-    # handle NMHC mass grams
-    THC_background_conc = (
-        BagData.loc[(BagData['RbComponent'] == 'THC') &
-                    (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+        CH4_background_conc = (
+            BagData.loc[(BagData['RbComponent'] == 'CH4') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+        DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
 
-    CH4_background_conc = (
-        BagData.loc[(BagData['RbComponent'] == 'CH4') &
-                    (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
-    DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
+        summary_results['mNMHCbkgrnd_g'] = \
+            (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
+             (THC_background_conc - CH4_background_conc * DiluteRFCH4_Fraction) / 10 ** 6)
 
-    summary_results['mNMHCbkgrnd_g'] = \
-        (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
-         (THC_background_conc - CH4_background_conc * DiluteRFCH4_Fraction) / 10 ** 6)
+        summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = summary_results['mNMHCbkgrnd_g'] + summary_results['mNOxbkgrnd_g']
 
-    summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = summary_results['mNMHCbkgrnd_g'] + summary_results['mNOxbkgrnd_g']
+        # calculate net mass grams
+        for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
+            summary_results['m%snet_g' % component] = \
+                (summary_results['m%s_g' % component] -
+                 summary_results['m%sbkgrnd_g' % component])
+    else:
+        # no background emissions for raw calcs
+        for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
+            summary_results['m%sbkgrnd_g' % component] = None
+        summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = None
 
-    # calculate net mass grams
-    for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
-        summary_results['m%snet_g' % component] = \
-            (summary_results['m%s_g' % component] -
-             summary_results['m%sbkgrnd_g' % component])
+        for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
+            summary_results['m%snet_g' % component] = summary_results['m%s_g' % component]
 
     # handle NMHC + NOx net mass grams
     summary_results['mNMHCnet_g+mNOxnet_g'] = + summary_results['mNMHCnet_g'] + summary_results['mNOxnet_g']
@@ -746,12 +772,13 @@ def calc_summary_results(time_aligned_data, emissions_cycle_number, test_type, d
     return summary_results
 
 
-def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_aligned_data_summary_results,
+def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_corrected_time_aligned_data_summary_results,
                       emissions_cycle_number, test_type, vehicle_test):
     """
     Calculate 1036 summary and carbon balance error check results
 
     Args:
+        calc_mode (str): 'raw' or 'dilute'
         drift_corrected_time_aligned_data (dataframe): drift-corrected, time-aligned continuous test data
         drift_corrected_time_aligned_data_summary_results (series): drift correct summary results
         emissions_cycle_number (int): emissions cycle number to process
@@ -792,9 +819,14 @@ def calc_1036_results(drift_corrected_time_aligned_data, drift_corrected_time_al
     mdot_avg_CO2DEF = (mDEF_g * constants['MCO2_g/mol'] * constants['wCH4N2O_Mass Fraction of urea in DEF'] /
                        constants['MCH4N2O_g/mol'])
 
+    if calc_mode == 'raw':
+        flow_mol_per_sec = drift_corrected_time_aligned_data['nexh_mol/sec']
+    else:
+        flow_mol_per_sec = drift_corrected_time_aligned_data['CVSFlow_mol/s']
+
     # CFR 1036.540-5
-    mfuel_term = drift_corrected_time_aligned_data['CVSFlow_mol/s'] * drift_corrected_time_aligned_data[
-        'xCcombdry_mol/mol'] / (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s
+    mfuel_term = (flow_mol_per_sec * drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
+                  (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s)
 
     mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
 
@@ -946,9 +978,6 @@ def run_phdp(runtime_options):
             else:
                 vehicle_test = False
 
-            results = \
-                {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
-
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
             # load all raw data, even if not all required for now
@@ -961,127 +990,137 @@ def run_phdp(runtime_options):
             else:
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
-            for ecn in emissions_cycles:
-                print('\nProcessing %s %d ...' % (test_type, ecn))
-
-                # pull in raw data and time align as necessary
-                if test_type == 'transient':
-                    emissions_cycle_number = ecn
-                    time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
-                                                                   emissions_cycle_number, min_mode_number)
-                else:
-                    emissions_cycle_number = 1
-                    mode_number = ecn
-                    time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
-                        phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
-                    time_aligned_data['SampleTime_s'] = (
-                        phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
-                    constants['SamplePeriod_s'] = time_aligned_data['SampleTime_s'].item()                    
-                    non_numeric_columns = [c for c in time_aligned_data.columns
-                                           if pd.api.types.is_object_dtype(time_aligned_data[c])]
-                    time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
-                    time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
-                    time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
-                    # time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
-                    time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
-                    time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
-                    time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
-                    time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
-
-                # add calculated values
-                pre_chemical_balance_calculations(time_aligned_data, test_type)
-
-                # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-                iterate_chemical_balance(time_aligned_data, emissions_cycle_number)
-
-                post_chemical_balance_calculations(time_aligned_data)
-
-                time_aligned_data_summary = (
-                    calc_summary_results(time_aligned_data, emissions_cycle_number, test_type))
-
-                drift_corrected_time_aligned_data = time_aligned_data.copy()
-
-                # drift-correct concentrations
-                for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
-                    drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
-
-                # drift-correct bag values
-                phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
-                for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
-                    if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
-                        drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
-
-                # add calculated values
-                pre_chemical_balance_calculations(drift_corrected_time_aligned_data, test_type)
-
-                # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-                iterate_chemical_balance(drift_corrected_time_aligned_data, emissions_cycle_number, drift_corrected=True)
-
-                post_chemical_balance_calculations(drift_corrected_time_aligned_data)
-
-                drift_corrected_time_aligned_data_summary = (
-                    calc_summary_results(drift_corrected_time_aligned_data, emissions_cycle_number, test_type,
-                                         drift_corrected=True))
-
-                calculations_1036 = calc_1036_results(drift_corrected_time_aligned_data,
-                                                      drift_corrected_time_aligned_data_summary,
-                                                      emissions_cycle_number, test_type, vehicle_test)
-
-                if test_type == 'transient':
-                    time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                    drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                    calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                else:
-                    time_aligned_data_summary['ModeNumber_Integer'] = mode_number
-                    drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
-                    calculations_1036['ModeNumber_Integer'] = mode_number
-
-                results['tad'].append(time_aligned_data)
-                results['dctad'].append(drift_corrected_time_aligned_data)
-                results['tadsummary'].append(time_aligned_data_summary)
-                results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
-                results['1036_calculations'].append(calculations_1036)
-
-            print('\nSaving results...\n')
-
-            output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
-
-            if test_type == 'modal':
-                index_name = 'ModeNumber_Integer'
+            if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
+                calc_modes = ('raw', 'dilute')
             else:
-                index_name = 'EmissionsCycleNumber_Integer'
-                phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
+                calc_modes = ('dilute')
+
+            for calc_mode in calc_modes:
+                results = \
+                    {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
+
+                for ecn in emissions_cycles:
+                    print('\nProcessing %s %s %d ...' % (test_type, calc_mode, ecn))
+
+                    # pull in raw data and time align as necessary
+                    if test_type == 'transient':
+                        emissions_cycle_number = ecn
+                        time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
+                                                                       emissions_cycle_number, min_mode_number)
+                    else:
+                        emissions_cycle_number = 1
+                        mode_number = ecn
+                        time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
+                            phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
+                        time_aligned_data['SampleTime_s'] = (
+                            phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
+                        constants['SamplePeriod_s'] = time_aligned_data['SampleTime_s'].item()
+                        non_numeric_columns = [c for c in time_aligned_data.columns
+                                               if pd.api.types.is_object_dtype(time_aligned_data[c])]
+                        time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
+                        time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
+                        time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
+                        # time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
+                        time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
+                        time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
+                        time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
+                        time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
+
+                    # add calculated values
+                    pre_chemical_balance_calculations(time_aligned_data, test_type)
+
+                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                    iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number)
+
+                    post_chemical_balance_calculations(time_aligned_data, calc_mode)
+
+                    time_aligned_data_summary = (
+                        calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number))
+
+                    drift_corrected_time_aligned_data = time_aligned_data.copy()
+
+                    # drift-correct concentrations
+                    for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
+                        drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
+
+                    # drift-correct bag values
+                    phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
+                    for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
+                        if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
+                            drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
+
+                    # add calculated values
+                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, test_type)
+
+                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                    iterate_chemical_balance(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
+                                             drift_corrected=True)
+
+                    post_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode)
+
+                    drift_corrected_time_aligned_data_summary = (
+                        calc_summary_results(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
+                                             drift_corrected=True))
+
+                    calculations_1036 = calc_1036_results(calc_mode, drift_corrected_time_aligned_data,
+                                                          drift_corrected_time_aligned_data_summary,
+                                                          emissions_cycle_number, test_type, vehicle_test)
+
+                    if test_type == 'transient':
+                        time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                        drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                        calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                    else:
+                        time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+                        drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+                        calculations_1036['ModeNumber_Integer'] = mode_number
+
+                    results['tad'].append(time_aligned_data)
+                    results['dctad'].append(drift_corrected_time_aligned_data)
+                    results['tadsummary'].append(time_aligned_data_summary)
+                    results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
+                    results['1036_calculations'].append(calculations_1036)
+
+                print('\nSaving results...\n')
+
+                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%s-' % calc_mode
+
+                if test_type == 'modal':
+                    index_name = 'ModeNumber_Integer'
+                else:
+                    index_name = 'EmissionsCycleNumber_Integer'
+                    phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
+                        encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat(results['tad']).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
                     encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            pd.concat(results['tad']).set_index(index_name).to_csv(
-                phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
-                encoding=phdp_globals.options.output_encoding, errors='replace')
+                pd.concat(results['dctad']).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            pd.concat(results['dctad']).set_index(index_name).to_csv(
-                phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
-                encoding=phdp_globals.options.output_encoding, errors='replace')
+                pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
-                phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
-                encoding=phdp_globals.options.output_encoding, errors='replace')
+                pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
-                phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
-                encoding=phdp_globals.options.output_encoding, errors='replace')
+                pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
 
-            pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
-                phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
-                encoding=phdp_globals.options.output_encoding, errors='replace')
+                if test_type == 'transient':
+                    generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
+                                              test_site, vehicle_test)
+                else:
+                    generate_modal_report(output_prefix, results, test_datetime, test_type, test_num,
+                                              test_site, vehicle_test)
 
-            if test_type == 'transient':
-                generate_transient_report(output_prefix, results, test_datetime, test_type, test_num,
-                                          test_site, vehicle_test)
-            else:
-                generate_modal_report(output_prefix, results, test_datetime, test_type, test_num,
-                                          test_site, vehicle_test)
-
-            print('done!')
+                print('done!')
 
             return results
 
@@ -1091,12 +1130,13 @@ def run_phdp(runtime_options):
         phdp_log.end_logfile("\nSession Fail")
 
 
-def generate_transient_report(output_prefix, results, test_datetime, test_type, test_num, test_site,
+def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test):
     """
 
     Args:
         output_prefix:
+        calc_mode:
         results:
         test_datetime:
         test_type:
@@ -1127,26 +1167,30 @@ def generate_transient_report(output_prefix, results, test_datetime, test_type, 
                 phdp_globals.test_data['TestDetails']['EmissionsCycleNumber_Integer'] == emissions_cycle_number,
                 'CycleName'].item()
 
-            set_value_at(report_df, 'Cycle ID', '%s' % cycle_name)
+            set_value_at(report_df, 'Cycle ID', cycle_name)
         else:
-            set_value_at(report_df, 'Cycle ID', '%s' %
-                         phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
+            set_value_at(report_df, 'Cycle ID', phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
+
+        set_value_at(report_df, 'Calculation Mode', calc_mode)
 
         set_value_at(report_df, 'Original Concentration', results['tadsummary'][i].iloc[0, 0:7].values)
         set_value_at(report_df, 'Corrected Concentration', results['dctadsummary'][i].iloc[0, 0:7].values)
         set_value_at(report_df, 'Original Mass', results['tadsummary'][i].iloc[0, 9:17].values)
 
         set_value_at(report_df, 'Corrected Mass', results['dctadsummary'][i].iloc[0, 9:17].values)
+
         set_value_at(report_df, 'Original Background Mass', results['tadsummary'][i].iloc[0, 17:25].values)
         set_value_at(report_df, 'Corrected Background Mass', results['dctadsummary'][i].iloc[0, 17:25].values)
 
         original_net_mass = results['tadsummary'][i].iloc[0, 25:33].values
         corrected_net_mass = results['dctadsummary'][i].iloc[0, 25:33].values
-        net_mass_drift_check_pct = (original_net_mass - corrected_net_mass) / original_net_mass * 100
 
         set_value_at(report_df, 'Original Net Mass', original_net_mass)
         set_value_at(report_df, 'Corrected Net Mass', corrected_net_mass)
-        set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
+
+        if calc_mode == 'dilute':
+            net_mass_drift_check_pct = (original_net_mass - corrected_net_mass) / original_net_mass * 100
+            set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
 
         # TODO: PM calculations
         set_value_at(report_df, 'Total PM Mass', None)
