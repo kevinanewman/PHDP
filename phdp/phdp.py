@@ -468,11 +468,13 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         ctype = 'conRaw'
         COrange = 'H'
         ems_prefix = 'Raw'
+        testparam_prefix = 'Raw'
         flow_mol_per_sec = time_aligned_data['nexh_mol/sec']
     else:
         ctype = 'con'
         COrange = 'L'
         ems_prefix = 'Dil'
+        testparam_prefix = 'Dilute'
         flow_mol_per_sec = time_aligned_data['CVSFlow_mol/s']
 
     # CFR 1065.659-1
@@ -483,21 +485,21 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
     # CFR 1065.659-1
     time_aligned_data['xTHCexh_μmol/mol'] = \
         time_aligned_data['%sTHC_Avg_ppmC' % ctype] - \
-        phdp_globals.test_data['TestParameters']['InitialDilTHC_ppmC'].item()
+        phdp_globals.test_data['TestParameters']['Initial%sTHC_ppmC' % ems_prefix].item()
 
     # CFR 1065.660-9
-    DiluteRFPFC2H6_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFPFC2H6_Fraction'].item()
-    DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
+    RFPFC2H6_Fraction = phdp_globals.test_data['TestParameters']['%sRFPFC2H6_Fraction' % testparam_prefix].item()
+    RFCH4_Fraction = phdp_globals.test_data['TestParameters']['%sRFCH4_Fraction' % testparam_prefix].item()
     time_aligned_data['xCH4exh_μmol/mol'] = \
         (time_aligned_data['%sCH4cutter_Avg_ppmC' % ctype] -
-         time_aligned_data['%sTHC_Avg_ppmC' % ctype] * DiluteRFPFC2H6_Fraction) / \
-        (1 - DiluteRFPFC2H6_Fraction * DiluteRFCH4_Fraction)
+         time_aligned_data['%sTHC_Avg_ppmC' % ctype] * RFPFC2H6_Fraction) / \
+        (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
 
     # CFR 1065.660-4
     time_aligned_data['xNMHCexh_μmol/mol'] = \
         (time_aligned_data['xTHCexh_μmol/mol'] -
-         time_aligned_data['xCH4exh_μmol/mol'] * DiluteRFCH4_Fraction) / \
-        (1 - DiluteRFPFC2H6_Fraction * DiluteRFCH4_Fraction)
+         time_aligned_data['xCH4exh_μmol/mol'] * RFCH4_Fraction) / \
+        (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
 
     # CFR 1065.659-1
     xH2OCOdilmeas = phdp_globals.test_data['EmsComponents'].loc[
@@ -685,8 +687,10 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
 
     if calc_mode == 'raw':
         ctype = 'conRaw'
+        testparam_prefix = 'Raw'
     else:
         ctype = 'con'
+        testparam_prefix = 'Dilute'
 
     # calculate summary values
     summary_results = pd.DataFrame(index=[0])
@@ -745,7 +749,7 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
         CH4_background_conc = (
             BagData.loc[(BagData['RbComponent'] == 'CH4') &
                         (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
-        DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['DiluteRFCH4_Fraction'].item()
+        DiluteRFCH4_Fraction = phdp_globals.test_data['TestParameters']['%sRFCH4_Fraction' % testparam_prefix].item()
 
         summary_results['mNMHCbkgrnd_g'] = \
             (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
