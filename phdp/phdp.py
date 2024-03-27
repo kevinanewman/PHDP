@@ -1014,7 +1014,7 @@ def run_phdp(runtime_options):
             if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                 calc_modes = ('raw', 'dilute')
             else:
-                calc_modes = ('dilute')
+                calc_modes = ['dilute']
 
             for calc_mode in calc_modes:
                 results = \
