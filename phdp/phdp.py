@@ -93,7 +93,7 @@ def load_data(test_site):
         Load test data into phdp_globals.test_data dict
 
     Args:
-        test_site (str): test site ID, e.g. 'HD02'
+        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
 
     """
     required_file_names = ('BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
@@ -124,7 +124,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     Time-align continuous data, add Vehicle Moving from cycle definition
 
     Args:
-        test_site (str): e.g. 'HD02'
+        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
         sampled_crank (bool): ``True`` if test has sampled engine cranking and startup
         emissions_cycle_number (int): emissions cycle number to process
@@ -300,7 +300,7 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): 'raw' or 'dilute'
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
         emissions_cycle_number (int): emissions cycle number to process
         drift_corrected (bool): use drift-correct background if ``True``
 
@@ -442,7 +442,7 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): 'raw' or 'dilute'
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
 
     Returns:
         Nothing, updates time_aligned_data
@@ -675,7 +675,7 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): 'raw' or 'dilute'
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
         emissions_cycle_number (int): emissions cycle number to process
         drift_corrected (bool): use drift-correct background if ``True``
 
@@ -799,7 +799,7 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
     Calculate 1036 summary and carbon balance error check results
 
     Args:
-        calc_mode (str): 'raw' or 'dilute'
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
         drift_corrected_time_aligned_data (dataframe): drift-corrected, time-aligned continuous test data
         drift_corrected_time_aligned_data_summary_results (series): drift correct summary results
         emissions_cycle_number (int): emissions cycle number to process
@@ -958,14 +958,15 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
 
 def run_phdp(runtime_options):
     """
+    Run Post-Horiba Data Processing and generate output summary and report files
 
     Args:
-        runtime_options:
+        runtime_options (PHDPSettings): processor settings
 
     Returns:
+        dict of emissions results
 
     """
-
     runtime_options.start_time = time.time()
 
     try:
@@ -1154,18 +1155,16 @@ def run_phdp(runtime_options):
 def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test):
     """
+    Generate a transient test report.
 
     Args:
-        output_prefix:
-        calc_mode:
-        results:
-        test_datetime:
-        test_type:
-        test_num:
-        test_site:
-        vehicle_test:
-
-    Returns:
+        output_prefix (str): the prefix to be added to the filename of the generated report file.
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        results (dict): a dictionary containing the results of the emissions calculations.
+        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
+        test_num (int): the number assigned to the test, e.g. '00139'
+        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
+        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
 
     """
     for i in range(0, len(results['tadsummary'])):
@@ -1277,21 +1276,18 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
 def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test):
     """
+    Generate a modal report and calculated mode-weighted mass and brake-specific emissions.
 
     Args:
-        output_prefix:
-        calc_mode:
-        results:
-        test_datetime:
-        test_type:
-        test_num:
-        test_site:
-        vehicle_test:
-
-    Returns:
+        output_prefix (str): the prefix to be added to the filename of the generated report file.
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        results (dict): a dictionary containing the results of the emissions calculations.
+        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
+        test_num (int): the number assigned to the test, e.g. '00139'
+        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
+        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
 
     """
-
     # create report header
     report_df = pd.read_csv(path + os.sep + 'modal_report_template.csv', encoding='UTF-8', header=None)
     report_df = report_df.fillna('')
