@@ -1141,7 +1141,7 @@ def run_phdp(runtime_options):
                                               test_site, vehicle_test)
                 else:
                     generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                              test_site, vehicle_test)
+                                              test_site)
 
                 print('done!')
 
@@ -1275,8 +1275,7 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
                          encoding='UTF-8', index=False, header=False)
 
 
-def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
-                              vehicle_test):
+def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site):
     """
     Generate a modal report and calculated mode-weighted mass and brake-specific emissions.
 
@@ -1287,7 +1286,6 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
         test_num (int): the number assigned to the test, e.g. '00139'
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
-        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
 
     """
     # create report header
