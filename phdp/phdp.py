@@ -459,23 +459,31 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
     time_aligned_data['nint_mol/sec'] = \
         time_aligned_data['qmIntakeAir_Avg_kg/h'] / 3.6 / time_aligned_data['Mmix_intake_g/mol']
 
-    # CFR 1065.655-26
-    time_aligned_data['nexh_mol/sec'] = \
-        (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
-        (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
-        time_aligned_data['nint_mol/sec']
-
     if calc_mode == 'raw':
         ctype = 'conRaw'
         COrange = 'H'
         ems_prefix = 'Raw'
         testparam_prefix = 'Raw'
+
+        # CFR 1065.655-24
+        time_aligned_data['nexh_mol/sec'] = \
+            (time_aligned_data['nint_mol/sec'] /
+             (1 + (time_aligned_data['xint/exhdry_mol/mol'] - time_aligned_data['xraw/exhdry_mol/mol']) /
+              (1 + time_aligned_data['xH2Oexhdry_mol/mol'])))
+
         flow_mol_per_sec = time_aligned_data['nexh_mol/sec']
     else:
         ctype = 'con'
         COrange = 'L'
         ems_prefix = 'Dil'
         testparam_prefix = 'Dilute'
+
+        # CFR 1065.655-26
+        time_aligned_data['nexh_mol/sec'] = \
+            (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
+            (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
+            time_aligned_data['nint_mol/sec']
+
         flow_mol_per_sec = time_aligned_data['CVSFlow_mol/s']
 
     # CFR 1065.659-1
