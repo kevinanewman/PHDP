@@ -10,6 +10,7 @@ PHDP top level code
 
 import sys, os
 
+import numpy as np
 import pandas as pd
 
 path = os.path.dirname(os.path.abspath(__file__))
@@ -1223,7 +1224,7 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         corrected_brake_specific_emissions = results['dctadsummary'][i].iloc[0, 33:41].values
         brake_specific_emissions_drift_check_pct = (
                 (original_brake_specific_emissions - corrected_brake_specific_emissions) /
-                original_brake_specific_emissions * 100)
+                np.maximum(original_brake_specific_emissions, sys.float_info.epsilon) * 100)
 
         set_value_at(report_df, 'Original Brake Specific Emissions', original_brake_specific_emissions)
         set_value_at(report_df, 'Corrected Brake Specific Emissions', corrected_brake_specific_emissions)
