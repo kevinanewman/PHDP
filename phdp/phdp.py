@@ -1210,7 +1210,8 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         set_value_at(report_df, 'Corrected Net Mass', corrected_net_mass)
 
         if calc_mode == 'dilute':
-            net_mass_drift_check_pct = (original_net_mass - corrected_net_mass) / original_net_mass * 100
+            net_mass_drift_check_pct = ((original_net_mass - corrected_net_mass) /
+                                        np.maximum(original_brake_specific_emissions, original_net_mass) * 100)
             set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
 
         # TODO: PM calculations
