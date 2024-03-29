@@ -186,12 +186,13 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     return time_aligned_data
 
 
-def pre_chemical_balance_calculations(time_aligned_data, test_type):
+def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     """
     Calculate values required for chemical balance iteration
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
+        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'
         test_type (str): 'transient' or 'modal'
 
     Returns:
@@ -293,6 +294,9 @@ def pre_chemical_balance_calculations(time_aligned_data, test_type):
     # 1065.645-3:
     time_aligned_data['xH2Oint_mol/mol'] = \
         time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
+
+    if calc_mode == 'raw':
+        time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['xH2Oint_mol/mol']
 
 
 def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number, drift_corrected=False):
@@ -1058,7 +1062,7 @@ def run_phdp(runtime_options):
                         time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
                     # add calculated values
-                    pre_chemical_balance_calculations(time_aligned_data, test_type)
+                    pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type)
 
                     # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
                     iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number)
@@ -1081,7 +1085,7 @@ def run_phdp(runtime_options):
                             drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
 
                     # add calculated values
-                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, test_type)
+                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode, test_type)
 
                     # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
                     iterate_chemical_balance(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
