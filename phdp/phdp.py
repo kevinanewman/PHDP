@@ -1149,7 +1149,7 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
             set_value_at(report_df, 'Net NMHC', results['dctadsummary'][i]['mNMHCnet_g'], col_offset=col_offset)
             set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'], col_offset=col_offset)
 
-        set_value_at(report_df, 'Mode Time', results['dctad'][i]['SampleTime_s'], col_offset=col_offset)
+        set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'], col_offset=col_offset)
         set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'], col_offset=col_offset)
 
         set_value_at(report_df, 'mfuelcor_meas', results['1036_calculations'][i]['mfuelcor_meas'], col_offset=col_offset)
@@ -1185,7 +1185,7 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
                 weighted_mass_emissions += (
                         results['dctadsummary'][i]['m%s_g' % signal] *
                         phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i] /
-                        results['dctad'][i]['SampleTime_s'] * 3600)
+                        results['dctad'][i]['elapsed_time_s'] * 3600)
             weighted_specific_emissions = weighted_mass_emissions / weighted_power
             set_value_at(report_df, 'Mass Emissions (g/h)', weighted_mass_emissions, col_offset=idx + 1)
             set_value_at(report_df, 'Specific Emsissions (g/kWh)', weighted_specific_emissions, col_offset=idx + 1)
@@ -1272,8 +1272,6 @@ def run_phdp(runtime_options):
                         mode_number = ecn
                         time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
                             phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
-                        time_aligned_data['SampleTime_s'] = (
-                            phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
                         non_numeric_columns = [c for c in time_aligned_data.columns
                                                if pd.api.types.is_object_dtype(time_aligned_data[c])]
                         time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
@@ -1293,6 +1291,8 @@ def run_phdp(runtime_options):
 
                         constants['SamplePeriod_s'] = (
                                 continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
+
+                        time_aligned_data['elapsed_time_s'] = constants['SamplePeriod_s']
 
                         time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
