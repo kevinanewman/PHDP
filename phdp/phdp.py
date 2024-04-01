@@ -807,6 +807,8 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
     else:
         summary_results['mNMHCnet_g/kWh+mNOxnet_g/kWh'] = 0
 
+    summary_results['elapsed_time_s'] = time_aligned_data['elapsed_time_s'].iloc[0]
+
     return summary_results
 
 
