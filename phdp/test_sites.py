@@ -63,6 +63,7 @@ def init_site_info(test_site):
     if test_site in ('HD02', 'HD05'):
         site_info['signals_and_delays']['ContinuousData'] = \
             {
+                'Time_Date': 0,
                 'ModeNumber_Integer': 0,
                 'EmissionsCycleNumber_Integer': 0,
                 'pCellAmbient_kPa': 0,

@@ -141,7 +141,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
 
     SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
 
-    constants['SamplePeriod_s'] = SamplePeriod_s
+    constants['SamplePeriod_s'] = SamplePeriod_s  # nominal sample period for purposes of time-aligning data
 
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
 
@@ -153,6 +153,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
                 time_aligned_data = pd.concat([time_aligned_data,
                                                pd.DataFrame({signal: phdp_globals.test_data[source][signal]
                                                             .iloc[delay_samples:].values})], axis=1)
+
     time_aligned_data = \
         (time_aligned_data[time_aligned_data['EmissionsCycleNumber_Integer'] == emissions_cycle_number].
          reset_index(drop=True))
@@ -182,6 +183,9 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     time_aligned_data = time_aligned_data.iloc[test_start_index:test_end_index]
 
     time_aligned_data = time_aligned_data.fillna(0)  # TODO: for now, need to confirm...
+
+    time_aligned_data['time_s'] = time_aligned_data['Time_Date'] * 24 * 3600
+    time_aligned_data['elapsed_time_s'] = time_aligned_data['time_s'].iloc[-1] - time_aligned_data['time_s'].iloc[0]
 
     return time_aligned_data
 
@@ -930,16 +934,8 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
             (calculations_1036['mCair_g'] + calculations_1036['mCfluidj_g']))
 
     # CFR 1065.643-8
-    if test_type == 'transient':
-        if 'CycleDuration_s' in TestDetails:
-            t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
-                'CycleDuration_s'].item()
-        else:
-            t_s = TestDetails[TestDetails['EmissionsCycleNumber_Integer'] == emissions_cycle_number][
-                'PMSampleTime_s'].item()
+    t_s = drift_corrected_time_aligned_data['elapsed_time_s'].iloc[0]
 
-    else:
-        t_s = SamplePeriod_s
     calculations_1036['eaCrate_g/h'] = calculations_1036['eaC_g'] / t_s * 3600
 
     # limit from CFR 1065.543 (b)(2)(iii)
@@ -1015,7 +1011,7 @@ def run_phdp(runtime_options):
 
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
-            # load all raw data, even if not all required for now
+            # load data
             load_data(test_site)
 
             if test_type == 'transient':
@@ -1049,7 +1045,6 @@ def run_phdp(runtime_options):
                             phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
                         time_aligned_data['SampleTime_s'] = (
                             phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
-                        constants['SamplePeriod_s'] = time_aligned_data['SampleTime_s'].item()
                         non_numeric_columns = [c for c in time_aligned_data.columns
                                                if pd.api.types.is_object_dtype(time_aligned_data[c])]
                         time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
@@ -1059,6 +1054,17 @@ def run_phdp(runtime_options):
                         time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
                         time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
                         time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
+
+                        phdp_globals.test_data['ContinuousData']['time_s'] = (
+                                phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
+                        mode_pts = ((phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
+                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
+
+                        continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
+
+                        constants['SamplePeriod_s'] = (
+                                continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
+
                         time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
                     # add calculated values
