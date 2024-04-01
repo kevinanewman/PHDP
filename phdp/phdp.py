@@ -965,212 +965,6 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
     return calculations_1036
 
 
-def run_phdp(runtime_options):
-    """
-    Run Post-Horiba Data Processing and generate output summary and report files
-
-    Args:
-        runtime_options (PHDPSettings): processor settings
-
-    Returns:
-        dict of emissions results
-
-    """
-    runtime_options.start_time = time.time()
-
-    try:
-        init_fail = init_phdp(runtime_options.copy())
-
-        if not init_fail:
-            if phdp_globals.options.horiba_file is None:
-                phdp_globals.options.horiba_file = \
-                    filedialog.askopenfilename(title='Select any test file', filetypes=[('csv', '*.csv')])
-
-            horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
-
-            test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
-
-            sampled_crank = False
-            min_mode_number = 0
-
-            if test_name in ('FTP', 'LLC'):
-                test_type = 'transient'
-                sampled_crank = True
-            elif test_name == 'RMC':
-                test_type = 'transient'
-                min_mode_number = 1
-            elif test_name in ('GHGTRNS', 'GHGCRSE'):
-                test_type = 'transient'
-            else:
-                test_type = 'modal'
-
-            if test_name in ('GHGTRNS'):
-                vehicle_test = True
-            else:
-                vehicle_test = False
-
-            phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
-
-            # load data
-            load_data(test_site)
-
-            if test_type == 'transient':
-                emissions_cycles = \
-                    [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
-                     if ecn >= 1]
-            else:
-                emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
-
-            if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
-                calc_modes = ('raw', 'dilute')
-            else:
-                calc_modes = ['dilute']
-
-            for calc_mode in calc_modes:
-                results = \
-                    {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
-
-                for ecn in emissions_cycles:
-                    print('\nProcessing %s %s %d ...' % (test_type, calc_mode, ecn))
-
-                    # pull in raw data and time align as necessary
-                    if test_type == 'transient':
-                        emissions_cycle_number = ecn
-                        time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
-                                                                       emissions_cycle_number, min_mode_number)
-                    else:
-                        emissions_cycle_number = 1
-                        mode_number = ecn
-                        time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
-                            phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
-                        time_aligned_data['SampleTime_s'] = (
-                            phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
-                        non_numeric_columns = [c for c in time_aligned_data.columns
-                                               if pd.api.types.is_object_dtype(time_aligned_data[c])]
-                        time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
-                        time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
-                        time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
-                        # time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
-                        time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
-                        time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
-                        time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
-
-                        phdp_globals.test_data['ContinuousData']['time_s'] = (
-                                phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
-                        mode_pts = ((phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
-                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
-
-                        continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
-
-                        constants['SamplePeriod_s'] = (
-                                continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
-
-                        time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
-
-                    # add calculated values
-                    pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type)
-
-                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-                    iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number)
-
-                    post_chemical_balance_calculations(time_aligned_data, calc_mode)
-
-                    time_aligned_data_summary = (
-                        calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number))
-
-                    drift_corrected_time_aligned_data = time_aligned_data.copy()
-
-                    # drift-correct concentrations
-                    for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
-                        drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
-
-                    # drift-correct bag values
-                    phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
-                    for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
-                        if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
-                            drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
-
-                    # add calculated values
-                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode, test_type)
-
-                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
-                    iterate_chemical_balance(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
-                                             drift_corrected=True)
-
-                    post_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode)
-
-                    drift_corrected_time_aligned_data_summary = (
-                        calc_summary_results(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
-                                             drift_corrected=True))
-
-                    calculations_1036 = calc_1036_results(calc_mode, drift_corrected_time_aligned_data,
-                                                          drift_corrected_time_aligned_data_summary,
-                                                          emissions_cycle_number, test_type, vehicle_test)
-
-                    if test_type == 'transient':
-                        time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                        drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                        calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                    else:
-                        time_aligned_data_summary['ModeNumber_Integer'] = mode_number
-                        drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
-                        calculations_1036['ModeNumber_Integer'] = mode_number
-
-                    results['tad'].append(time_aligned_data)
-                    results['dctad'].append(drift_corrected_time_aligned_data)
-                    results['tadsummary'].append(time_aligned_data_summary)
-                    results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
-                    results['1036_calculations'].append(calculations_1036)
-
-                print('\nSaving results...\n')
-
-                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%s-' % calc_mode
-
-                if test_type == 'modal':
-                    index_name = 'ModeNumber_Integer'
-                else:
-                    index_name = 'EmissionsCycleNumber_Integer'
-                    phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
-                        encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                pd.concat(results['tad']).set_index(index_name).to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
-                    encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                pd.concat(results['dctad']).set_index(index_name).to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
-                    encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
-                    encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
-                    encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
-                    phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
-                    encoding=phdp_globals.options.output_encoding, errors='replace')
-
-                if test_type == 'transient':
-                    generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                              test_site, vehicle_test)
-                else:
-                    generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                              test_site)
-
-                print('done!')
-
-            return results
-
-    except:
-        phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
-        print("### Check PHDP log for error messages ###")
-        phdp_log.end_logfile("\nSession Fail")
-
-
 def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test):
     """
@@ -1398,6 +1192,212 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
 
     report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
                      index=False, header=False)
+
+
+def run_phdp(runtime_options):
+    """
+    Run Post-Horiba Data Processing and generate output summary and report files
+
+    Args:
+        runtime_options (PHDPSettings): processor settings
+
+    Returns:
+        dict of emissions results
+
+    """
+    runtime_options.start_time = time.time()
+
+    try:
+        init_fail = init_phdp(runtime_options.copy())
+
+        if not init_fail:
+            if phdp_globals.options.horiba_file is None:
+                phdp_globals.options.horiba_file = \
+                    filedialog.askopenfilename(title='Select any test file', filetypes=[('csv', '*.csv')])
+
+            horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
+
+            test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
+
+            sampled_crank = False
+            min_mode_number = 0
+
+            if test_name in ('FTP', 'LLC'):
+                test_type = 'transient'
+                sampled_crank = True
+            elif test_name == 'RMC':
+                test_type = 'transient'
+                min_mode_number = 1
+            elif test_name in ('GHGTRNS', 'GHGCRSE'):
+                test_type = 'transient'
+            else:
+                test_type = 'modal'
+
+            if test_name in ('GHGTRNS'):
+                vehicle_test = True
+            else:
+                vehicle_test = False
+
+            phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
+
+            # load data
+            load_data(test_site)
+
+            if test_type == 'transient':
+                emissions_cycles = \
+                    [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
+                     if ecn >= 1]
+            else:
+                emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
+
+            if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
+                calc_modes = ('raw', 'dilute')
+            else:
+                calc_modes = ['dilute']
+
+            for calc_mode in calc_modes:
+                results = \
+                    {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
+
+                for ecn in emissions_cycles:
+                    print('\nProcessing %s %s %d ...' % (test_type, calc_mode, ecn))
+
+                    # pull in raw data and time align as necessary
+                    if test_type == 'transient':
+                        emissions_cycle_number = ecn
+                        time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
+                                                                       emissions_cycle_number, min_mode_number)
+                    else:
+                        emissions_cycle_number = 1
+                        mode_number = ecn
+                        time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
+                            phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
+                        time_aligned_data['SampleTime_s'] = (
+                            phdp_globals.test_data)['ModeValidationResults']['SampleTime_s'][mode_number-1]
+                        non_numeric_columns = [c for c in time_aligned_data.columns
+                                               if pd.api.types.is_object_dtype(time_aligned_data[c])]
+                        time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
+                        time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
+                        time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
+                        # time_aligned_data['qmFuel_g/h'] = time_aligned_data['qmFuel_Avg_g/h']
+                        time_aligned_data['tIntakeAir_°C'] = time_aligned_data['tIntakeAir_Avg_°C']
+                        time_aligned_data['tCellDewPt_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
+                        time_aligned_data['pCellAmbient_kPa'] = time_aligned_data['pCellAmbient_Avg_kPa']
+
+                        phdp_globals.test_data['ContinuousData']['time_s'] = (
+                                phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
+                        mode_pts = ((phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
+                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
+
+                        continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
+
+                        constants['SamplePeriod_s'] = (
+                                continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
+
+                        time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
+
+                    # add calculated values
+                    pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type)
+
+                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                    iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number)
+
+                    post_chemical_balance_calculations(time_aligned_data, calc_mode)
+
+                    time_aligned_data_summary = (
+                        calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number))
+
+                    drift_corrected_time_aligned_data = time_aligned_data.copy()
+
+                    # drift-correct concentrations
+                    for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
+                        drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
+
+                    # drift-correct bag values
+                    phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
+                    for idx in phdp_globals.test_data['drift_corrected_BagData'].index:
+                        if phdp_globals.test_data['drift_corrected_BagData'].loc[idx, 'RbComponent'] != 'NMHC':
+                            drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
+
+                    # add calculated values
+                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode, test_type)
+
+                    # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
+                    iterate_chemical_balance(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
+                                             drift_corrected=True)
+
+                    post_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode)
+
+                    drift_corrected_time_aligned_data_summary = (
+                        calc_summary_results(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
+                                             drift_corrected=True))
+
+                    calculations_1036 = calc_1036_results(calc_mode, drift_corrected_time_aligned_data,
+                                                          drift_corrected_time_aligned_data_summary,
+                                                          emissions_cycle_number, test_type, vehicle_test)
+
+                    if test_type == 'transient':
+                        time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                        drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                        calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                    else:
+                        time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+                        drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+                        calculations_1036['ModeNumber_Integer'] = mode_number
+
+                    results['tad'].append(time_aligned_data)
+                    results['dctad'].append(drift_corrected_time_aligned_data)
+                    results['tadsummary'].append(time_aligned_data_summary)
+                    results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
+                    results['1036_calculations'].append(calculations_1036)
+
+                print('\nSaving results...\n')
+
+                output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%s-' % calc_mode
+
+                if test_type == 'modal':
+                    index_name = 'ModeNumber_Integer'
+                else:
+                    index_name = 'EmissionsCycleNumber_Integer'
+                    phdp_globals.test_data['drift_corrected_BagData'].to_csv(
+                        phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
+                        encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat(results['tad']).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat(results['dctad']).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
+                    phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
+                    encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                if test_type == 'transient':
+                    generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
+                                              test_site, vehicle_test)
+                else:
+                    generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
+                                              test_site)
+
+                print('done!')
+
+            return results
+
+    except:
+        phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
+        print("### Check PHDP log for error messages ###")
+        phdp_log.end_logfile("\nSession Fail")
 
 
 if __name__ == "__main__":
