@@ -380,11 +380,29 @@ def is_container(obj):
     return isinstance(obj, Iterable) and not isinstance(obj, str)
 
 
-def set_value_at(df, search_str, set_value=None, col_offset=1, small_float_format='%.4f', large_float_format='%.3f',
+def find_cell(df: pd.DataFrame, search_str: str) -> tuple:
+    """
+    Finds the row and column number of a cell in a DataFrame that equals a given string.
+    Parameters:
+        df (pd.DataFrame): The DataFrame to search within.
+        search_str (str): The string to search for in the DataFrame.
+    Returns:
+        tuple: A tuple containing the row and column number of the cell, or ``(None, None)`` if the string is not found.
+               If the string is found multiple times, returns the row and column numbers of the first occurrence.
+    """
+    search_result = (df == search_str).values.nonzero()
+
+    if len(search_result[0]):
+        row, col = search_result
+        return row[0], col[0]  # return location of first instance
+    else:
+        return None, None
+
+
+def set_value_at(df, search_str, set_value, col_offset=1, small_float_format='%.4f', large_float_format='%.3f',
                  large_cutoff=100):
     """
-    Finds a given string in a DataFrame and set the value of the cell(s) next to it or return the row and
-    column index + col_offset of the first occurrence
+    Finds a given string in a DataFrame and set the value of the cell(s) next to it, as determined by ``col_offset``
 
     Parameters:
         df (DataFrame): The input DataFrame.
@@ -396,32 +414,26 @@ def set_value_at(df, search_str, set_value=None, col_offset=1, small_float_forma
         large_cutoff (numeric): numeric cutoff for using large float format
 
     Returns:
-        if set_value is None, returns a tuple containing the row and column number + 1 of the first occurrence of the
-         string, or raises and Exception if the string is not found
+        Raises an Exception if the string is not found, otherwise sets appropriate cell value(s) in ``df``
 
     """
 
-    found = False
-    for row_index, row in df.iterrows():
-        for col_index, value in row.items():
-            if not found and str(value) == search_str:
-                found = True
-                if set_value is not None:
-                    if is_container(set_value):
-                        for idx, v in enumerate(set_value):
-                            if v is not None and type(v) is not str:
-                                if v >= large_cutoff:
-                                    df.iloc[row_index, col_index + col_offset + idx] = large_float_format % v
-                                else:
-                                    df.iloc[row_index, col_index + col_offset + idx] = small_float_format % v
-                            else:
-                                df.iloc[row_index, col_index + col_offset + idx] = v
-                    else:
-                        df.iloc[row_index, col_index + col_offset] = set_value
-                else:
-                    return row_index, col_index + col_offset
-    if not found:
+    row_index, col_index = find_cell(df, search_str)
+
+    if row_index is None:
         raise Exception('"%s" not found in dataframe' % search_str)
+    else:
+        if is_container(set_value):
+            for idx, v in enumerate(set_value):
+                if v is not None and type(v) is not str:
+                    if v >= large_cutoff:
+                        df.iloc[row_index, col_index + col_offset + idx] = large_float_format % v
+                    else:
+                        df.iloc[row_index, col_index + col_offset + idx] = small_float_format % v
+                else:
+                    df.iloc[row_index, col_index + col_offset + idx] = v
+        else:
+            df.iloc[row_index, col_index + col_offset] = set_value
 
 
 if __name__ == '__main__':
