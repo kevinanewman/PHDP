@@ -1084,9 +1084,12 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
             set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
             set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
 
-        report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
-                         '%d-report.csv' % emissions_cycle_number,
-                         encoding='UTF-8', index=False, header=False)
+        # report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
+        #                  '%d-report.csv' % emissions_cycle_number,
+        #                  encoding='UTF-8', index=False, header=False)
+        report_df.to_excel(phdp_globals.options.output_folder_base + output_prefix +
+                         '%d-report.xlsx' % emissions_cycle_number, index=False, header=False)
+
 
 
 def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site):
@@ -1192,8 +1195,10 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
             set_value_at(report_df, 'Mass Emissions (g/h)', weighted_mass_emissions, col_offset=idx + 1)
             set_value_at(report_df, 'Specific Emsissions (g/kWh)', weighted_specific_emissions, col_offset=idx + 1)
 
-    report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
-                     index=False, header=False)
+    # report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
+    #                  index=False, header=False)
+    report_df.to_excel(phdp_globals.options.output_folder_base + output_prefix + 'report.xlsx', index=False,
+                       header=False)
 
 
 def run_phdp(runtime_options):
