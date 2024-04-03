@@ -245,7 +245,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
         # 1065.645-3:
         if test_type == 'transient':
             time_aligned_data['xH2Odil_mol/mol'] = \
-                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_kPa']
+                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
         else:
             time_aligned_data['xH2Odil_mol/mol'] = (
                     time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
@@ -258,7 +258,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
         if test_type == 'transient':
             # TODO: verify this for transient non-RH-based calculations
             # 1065.645-3:
-            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_kPa']
+            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
         else:
             # 1065.645-3:
             time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
@@ -266,7 +266,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
     time_aligned_data['Power_kW'] = \
-        np.maximum(0, time_aligned_data['tqShaft_Nm'] * time_aligned_data['spDyno_rev/min'] / 9548.8)
+        np.maximum(0, time_aligned_data['tqShaft_Avg_Nm'] * time_aligned_data['spDyno_Avg_rev/min'] / 9548.8)
 
     if 'DEFMassFlowRate_Avg_g/h' not in time_aligned_data:
         time_aligned_data['DEFMassFlowRate_Avg_g/h'] = 0
@@ -285,8 +285,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     time_aligned_data['gamma'] = 0  # no gamma for now
 
-    time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_°C'] + 273.15
-    time_aligned_data['Tdewint_°C'] = time_aligned_data['tCellDewPt_°C']
+    time_aligned_data['Tint_K'] = time_aligned_data['tIntakeAir_Avg_°C'] + 273.15
+    time_aligned_data['Tdewint_°C'] = time_aligned_data['tCellDewPt_Avg_°C']
 
     # 1065.645-1:
     time_aligned_data['Tdewint_K'] = time_aligned_data['Tdewint_°C'] + 273.15
@@ -297,7 +297,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     # 1065.645-3:
     time_aligned_data['xH2Oint_mol/mol'] = \
-        time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_kPa']
+        time_aligned_data['pH2Oamb_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
 
     if calc_mode == 'raw':
         time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['xH2Oint_mol/mol']
@@ -897,15 +897,15 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
                     drift_corrected_time_aligned_data['Power_kW'] > 0)) * SamplePeriod_s / 3600
 
         calculations_1036['CycleAverageIdleSpeed_rpm'] = (
-            (drift_corrected_time_aligned_data['spDyno_rev/min'][
+            (drift_corrected_time_aligned_data['spDyno_Avg_rev/min'][
                 drift_corrected_time_aligned_data['VehicleMoving_Logical'] == 0]).mean())
 
         calculations_1036['CycleAverageTorque_Nm'] = (
-            (drift_corrected_time_aligned_data['tqShaft_Nm'][
+            (drift_corrected_time_aligned_data['tqShaft_Avg_Nm'][
                 drift_corrected_time_aligned_data['VehicleMoving_Logical'] == 0]).mean())
 
         calculations_1036['EngineToVehicleSpeedRatio_rev/mi'] = (
-                (drift_corrected_time_aligned_data['spDyno_rev/min'][drift_corrected_time_aligned_data[
+                (drift_corrected_time_aligned_data['spDyno_Avg_rev/min'][drift_corrected_time_aligned_data[
                                                                          'VehicleMoving_Logical'] == 1]).mean()
                 / 60 / simulation_average_vehicle_speed_mps)
 
