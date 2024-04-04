@@ -169,7 +169,7 @@ def rawexhdry(time_aligned_data):
                        (time_aligned_data['xH2dry_μmol/mol'] / 1e6))) + time_aligned_data['xint/exhdry_mol/mol']
 
 
-def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):
+def calc_alpha(fuel, DEF):
     """
     CFR 1065.655-20
     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
@@ -177,32 +177,49 @@ def alpha(qmFuel_gph, DEFMassFlowRate_Avg_gph):
     Calculate alpha, atomic hydrogen-to-carbon ratio
 
     Args:
-        qmFuel_gph (Series): fuel mass flow rate, grams per hour
-        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
+
+    Returns:
+        alpha, atomic hydrogen-to-carbon ratio
+    """
+    return (constants['MC_g/mol'] / constants['MH_g/mol'] *
+            (fuel * constants['whFuel'] + DEF * constants['whDef']) /
+            (fuel * constants['wcFuel'] + DEF * constants['wcDef']))
+
+
+def alpha(fuel, DEF, units='g/h'):
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
+
+    Calculate alpha, atomic hydrogen-to-carbon ratio, and provide default value if/when ``fuel`` is negative
+
+    Args:
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
+        units (str): 'g/h' or 'g'
 
     Returns:
         alpha, atomic hydrogen-to-carbon ratio
 
     """
-    fuel_rate_positive = qmFuel_gph > 0
+    alpha = calc_alpha(fuel, DEF)
 
-    alpha = (constants['MC_g/mol'] / constants['MH_g/mol'] *
-       (qmFuel_gph * constants['whFuel'] + DEFMassFlowRate_Avg_gph * constants['whDef']) /
-       (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+    if units == 'g/h':
+        fuel_rate_positive = fuel > 0
 
-    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
-    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
+        mfuel_g = fuel.sum() * constants['SamplePeriod_s'] / 3600
+        mDEF_g = DEF.sum() * constants['SamplePeriod_s'] / 3600
 
-    default_alpha = (constants['MC_g/mol']/constants['MH_g/mol'] *
-                     (mfuel_g * constants['whFuel'] + mDEF_g * constants['whDef']) /
-                     (mfuel_g * constants['wcFuel'] + mDEF_g*constants['wcDef']))
+        default_alpha = calc_alpha(mfuel_g, mDEF_g)
 
-    alpha.loc[~fuel_rate_positive] = ASTM_round(default_alpha, 3)  # for now, eventually probably: alpha.loc[fuel_rate_positive].mean()
+        alpha.loc[~fuel_rate_positive] = ASTM_round(default_alpha, 3)  # for now, eventually probably: alpha.loc[fuel_rate_positive].mean()
 
     return alpha
 
 
-def beta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
+def calc_beta(fuel, DEF):
     """
     CFR 1065.655-20
     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
@@ -210,30 +227,51 @@ def beta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
     Calculate beta, atomic oxygen-to-carbon ratio
 
     Args:
-        qmFuel_gph (Series): fuel mass flow rate, grams per hour
-        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
 
     Returns:
         beta, atomic oxygen-to-carbon ratio
 
     """
-    fuel_rate_positive = qmFuel_gph > 0
+    default_beta = (constants['MC_g/mol'] / constants['MO_g/mol'] * (DEF * constants['woDef']) /
+                    (fuel * constants['wcFuel'] + DEF * constants['wcDef']))
 
-    beta = (constants['MC_g/mol'] / constants['MO_g/mol'] * (DEFMassFlowRate_Avg_gph * constants['woDef']) /
-            (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+    return default_beta
 
-    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
-    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
 
-    default_beta = (constants['MC_g/mol'] / constants['MO_g/mol'] * (mDEF_g * constants['woDef']) /
-            (mfuel_g * constants['wcFuel'] + mDEF_g * constants['wcDef']))
+def beta(fuel, DEF, units='g/h'):
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
 
-    beta.loc[~fuel_rate_positive] = ASTM_round(default_beta, 2)  # for now, eventually probably: beta.loc[fuel_rate_positive].mean()
+    Calculate beta, atomic oxygen-to-carbon ratio, and provide default value if/when ``fuel`` is negative
+
+    Args:
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
+        units (str): 'g/h' or 'g'
+
+    Returns:
+        beta, atomic oxygen-to-carbon ratio
+
+    """
+    beta = calc_beta(fuel, DEF)
+
+    if units == 'g/h':
+        fuel_rate_positive = fuel > 0
+
+        mfuel_g = fuel.sum() * constants['SamplePeriod_s'] / 3600
+        mDEF_g = DEF.sum() * constants['SamplePeriod_s'] / 3600
+
+        default_beta = calc_beta(mfuel_g, mDEF_g)
+
+        beta.loc[~fuel_rate_positive] = ASTM_round(default_beta, 2)  # for now, eventually probably: beta.loc[fuel_rate_positive].mean()
 
     return beta
 
 
-def delta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
+def calc_delta(mfuel, DEF):
     """
     CFR 1065.655-20
     https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
@@ -241,25 +279,47 @@ def delta(qmFuel_gph, DEFMassFlowRate_Avg_gph):
     Calculate delta, atomic nitrogen-to-carbon ratio
 
     Args:
-        qmFuel_gph (Series): fuel mass flow rate, grams per hour
-        DEFMassFlowRate_Avg_gph (Series): DEF mass flow rate, grams per hour
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
+        units (str): 'g/h' or 'g'
 
     Returns:
         delta, atomic nitrogen-to-carbon ratio
 
     """
-    fuel_rate_positive = qmFuel_gph > 0
+    default_delta = (constants['MC_g/mol'] / constants['MN_g/mol'] * (DEF * constants['wnDef']) /
+                     (mfuel * constants['wcFuel'] + DEF * constants['wcDef']))
 
-    delta = (constants['MC_g/mol'] / constants['MN_g/mol'] * (DEFMassFlowRate_Avg_gph * constants['wnDef']) /
-             (qmFuel_gph * constants['wcFuel'] + DEFMassFlowRate_Avg_gph * constants['wcDef']))
+    return default_delta
 
-    mfuel_g = qmFuel_gph.sum() * constants['SamplePeriod_s'] / 3600
-    mDEF_g = DEFMassFlowRate_Avg_gph.sum() * constants['SamplePeriod_s'] / 3600
 
-    default_delta = (constants['MC_g/mol'] / constants['MN_g/mol'] * (mDEF_g * constants['wnDef']) /
-                     (mfuel_g * constants['wcFuel'] + mDEF_g * constants['wcDef']))
+def delta(fuel, DEF, units='g/h'):
+    """
+    CFR 1065.655-20
+    https://www.ecfr.gov/current/title-40/chapter-I/subchapter-U/part-1065/subpart-G/section-1065.655
 
-    delta.loc[~fuel_rate_positive] = ASTM_round(default_delta, 3)  # for now, eventually probably: delta.loc[fuel_rate_positive].mean()
+    Calculate delta, atomic nitrogen-to-carbon ratio, and provide default value if/when ``fuel`` is negative
+
+    Args:
+        fuel (Series, float): fuel mass grams or flow rate grams per hour
+        DEF (Series, float): DEF mass grams or flow rate grams per hour
+        units (str): 'g/h' or 'g'
+
+    Returns:
+        delta, atomic nitrogen-to-carbon ratio
+
+    """
+    delta = calc_delta(fuel, DEF)
+
+    if units == 'g/h':
+        fuel_rate_positive = fuel > 0
+
+        mfuel_g = fuel.sum() * constants['SamplePeriod_s'] / 3600
+        mDEF_g = DEF.sum() * constants['SamplePeriod_s'] / 3600
+
+        default_delta = calc_delta(mfuel_g, mDEF_g)
+
+        delta.loc[~fuel_rate_positive] = ASTM_round(default_delta, 3)  # for now, eventually probably: delta.loc[fuel_rate_positive].mean()
 
     return delta
 
