@@ -203,65 +203,98 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
         Nothing, updates time_aligned_data
 
     """
-    time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
+    from constants import constants
 
-    if test_type == 'transient':
-        if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
-            time_aligned_data['CVSFlow_mol/s'] = \
-                (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-                phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
-        else:
-            # TODO: need to verify if this is correct for HD05 transient (FTP) test
-            time_aligned_data['CVSFlow_mol/s'] = (
-                    time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
-                    phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'].item())
+    if calc_mode == 'dilute-bag':
+        # calculate average values
+        time_aligned_data_avg = time_aligned_data.apply(lambda x: [x.mean()])
+        time_aligned_data_sum = time_aligned_data.apply(lambda x: [x.sum()])
+        time_aligned_data = pd.DataFrame()
+
+        time_aligned_data['qmIntakeAir_Avg_kg'] = (
+                time_aligned_data_sum['qmIntakeAir_Avg_kg/h'] / 3600 * constants['SamplePeriod_s'])
+
+        time_aligned_data['qmFuel_Avg_g'] = (
+                time_aligned_data_sum['qmFuel_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
+
+        time_aligned_data['DEFMassFlowRate_Avg_g'] = (
+                time_aligned_data_sum['DEFMassFlowRate_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
+
+        time_aligned_data['IntakeAirPress_Avg_kPa'] = time_aligned_data_avg['IntakeAirPress_Avg_kPa']
+        time_aligned_data['tCellDewPt_Avg_°C'] = time_aligned_data_avg['tCellDewPt_Avg_°C']
+        time_aligned_data['CVSDilAirDPTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirDPTemp_Avg_°C']
+
+        time_aligned_data['CVSFlow_mol'] = (
+                time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
+
+        time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
+
+        # time_aligned_data['xH2Odil_mol/mol'] =
+        # time_aligned_data['xH2Oint_mol/mol'] =
+
+        unit_rate = ''
     else:
-        if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
-            time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
+        unit_rate = '/s'
 
-            time_aligned_data['CVSFlow_mol/s'] = (
-                (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-                 phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
-        else:
-            time_aligned_data['CVSFlow_mol/s'] = (
-                    time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
-                    phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
+        time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
 
-    time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
-
-    if 'CVSDilAirRH_Avg_%' in time_aligned_data:
-        # calculations based on relative humidity
-        # 1065.645-1:
-        time_aligned_data['pH2Odilsat_kPa'] = \
-            CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
-        time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
-                                              time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
-        # 1065.645-5
-        time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
-        time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
-        time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
-        time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
-
-        # 1065.645-3:
         if test_type == 'transient':
-            time_aligned_data['xH2Odil_mol/mol'] = \
-                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
+                time_aligned_data['CVSFlow_mol/s'] = \
+                    (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+                    phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_m³/s'].item()) / 0.024055
+            else:
+                # TODO: need to verify if this is correct for HD05 transient (FTP) test
+                time_aligned_data['CVSFlow_mol/s'] = (
+                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
+                        phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'].item())
         else:
-            time_aligned_data['xH2Odil_mol/mol'] = (
-                    time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
-                    time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
-    else:
-        # calculations based on dew point
-        time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
-        # 1065.645-1:
-        time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
-        if test_type == 'transient':
-            # TODO: verify this for transient non-RH-based calculations
+            if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
+                time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
+
+                time_aligned_data['CVSFlow_mol/s'] = (
+                    (time_aligned_data['qvCVS_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
+                     phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
+            else:
+                time_aligned_data['CVSFlow_mol/s'] = (
+                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
+                        phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
+
+        time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
+
+        if 'CVSDilAirRH_Avg_%' in time_aligned_data:
+            # calculations based on relative humidity
+            # 1065.645-1:
+            time_aligned_data['pH2Odilsat_kPa'] = \
+                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
+            time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
+                                                  time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
+            # 1065.645-5
+            time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
+            time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
+            time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
+            time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+
             # 1065.645-3:
-            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            if test_type == 'transient':
+                time_aligned_data['xH2Odil_mol/mol'] = \
+                    time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            else:
+                time_aligned_data['xH2Odil_mol/mol'] = (
+                        time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
+                        time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
         else:
-            # 1065.645-3:
-            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            # calculations based on dew point
+            time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
+            # 1065.645-1:
+            time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+            if test_type == 'transient':
+                # TODO: verify this for transient non-RH-based calculations
+                # 1065.645-3:
+                time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            else:
+                # 1065.645-3:
+                time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
@@ -271,17 +304,25 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     if 'DEFMassFlowRate_Avg_g/h' not in time_aligned_data:
         time_aligned_data['DEFMassFlowRate_Avg_g/h'] = 0
 
+    if unit_rate == '/s':
+        greek_units = 'g/h'
+    else:
+        greek_units = 'g'
+
     # 1065.655-20:
     time_aligned_data['alpha'] = \
-        CFR1065.alpha(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.alpha(time_aligned_data['qmFuel_Avg_%s'] % greek_units,
+                      time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
 
     # 1065.655-21:
     time_aligned_data['beta'] = \
-        CFR1065.beta(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.beta(time_aligned_data['qmFuel_Avg_%s'] % greek_units,
+                     time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
 
     # 1065.655-23:
     time_aligned_data['delta'] = \
-        CFR1065.delta(time_aligned_data['qmFuel_Avg_g/h'], time_aligned_data['DEFMassFlowRate_Avg_g/h'])
+        CFR1065.delta(time_aligned_data['qmFuel_Avg_%s' % greek_units],
+                      time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
 
     time_aligned_data['gamma'] = 0  # no gamma for now
 
@@ -1258,9 +1299,15 @@ def run_phdp(runtime_options):
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
             if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
-                calc_modes = ('raw', 'dilute')
+                calc_modes = ['raw', 'dilute', 'dilute-bag']
             else:
-                calc_modes = ['dilute']
+                calc_modes = ['dilute', 'dilute-bag']
+
+            if test_name == 'LLC':
+                # no bag data for LLC tests, duration is too long for bagging
+                calc_modes.remove('dilute-bag')
+
+            calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
 
             for calc_mode in calc_modes:
                 results = \
