@@ -209,28 +209,38 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
         # calculate average values
         time_aligned_data_avg = time_aligned_data.apply(lambda x: [x.mean()])
         time_aligned_data_sum = time_aligned_data.apply(lambda x: [x.sum()])
-        time_aligned_data = pd.DataFrame()
+        if len(time_aligned_data) > 1:
+            time_aligned_data = pd.DataFrame({'elapsed_time_s': [time_aligned_data['elapsed_time_s'].iloc[0]],
+                                              'EmissionsCycleNumber_Integer': time_aligned_data['EmissionsCycleNumber_Integer'].iloc[0]})
 
-        time_aligned_data['qmIntakeAir_Avg_kg'] = (
-                time_aligned_data_sum['qmIntakeAir_Avg_kg/h'] / 3600 * constants['SamplePeriod_s'])
+        if 'qmIntakeAir_Avg_kg/h' in time_aligned_data_sum:
+            time_aligned_data['qmIntakeAir_Avg_kg'] = (
+                    time_aligned_data_sum['qmIntakeAir_Avg_kg/h'] / 3600 * constants['SamplePeriod_s'])
 
-        time_aligned_data['qmFuel_Avg_g'] = (
-                time_aligned_data_sum['qmFuel_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
+        if 'qmFuel_Avg_g/h' in time_aligned_data_sum:
+            time_aligned_data['qmFuel_Avg_g'] = (
+                    time_aligned_data_sum['qmFuel_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
 
-        time_aligned_data['DEFMassFlowRate_Avg_g'] = (
-                time_aligned_data_sum['DEFMassFlowRate_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
+        if 'DEFMassFlowRate_Avg_g/h' in time_aligned_data_sum:
+            time_aligned_data['DEFMassFlowRate_Avg_g'] = (
+                    time_aligned_data_sum['DEFMassFlowRate_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
 
         time_aligned_data['IntakeAirPress_Avg_kPa'] = time_aligned_data_avg['IntakeAirPress_Avg_kPa']
         time_aligned_data['tCellDewPt_Avg_°C'] = time_aligned_data_avg['tCellDewPt_Avg_°C']
+
+        time_aligned_data['CVSDilAirTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirTemp_Avg_°C']
         time_aligned_data['CVSDilAirDPTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirDPTemp_Avg_°C']
 
-        time_aligned_data['CVSFlow_mol'] = (
-                time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
+        if 'CVSMolarFlow_Avg_mol/s' in time_aligned_data_sum:
+            time_aligned_data['CVSFlow_mol'] = (
+                    time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
 
         time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
 
-        # time_aligned_data['xH2Odil_mol/mol'] =
-        # time_aligned_data['xH2Oint_mol/mol'] =
+        time_aligned_data['tqShaft_Avg_Nm'] = time_aligned_data_avg['tqShaft_Avg_Nm']
+        time_aligned_data['spDyno_Avg_rev/min'] = time_aligned_data_avg['spDyno_Avg_rev/min']
+
+        time_aligned_data['pCellAmbient_Avg_kPa'] = time_aligned_data_avg['pCellAmbient_Avg_kPa']
 
         unit_rate = ''
     else:
@@ -260,41 +270,41 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
                         time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
                         phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
 
-        time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
+    time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
-        if 'CVSDilAirRH_Avg_%' in time_aligned_data:
-            # calculations based on relative humidity
-            # 1065.645-1:
-            time_aligned_data['pH2Odilsat_kPa'] = \
-                CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
-            time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
-                                                  time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
-            # 1065.645-5
-            time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
-            time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
-            time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
-            time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+    if 'CVSDilAirRH_Avg_%' in time_aligned_data:
+        # calculations based on relative humidity
+        # 1065.645-1:
+        time_aligned_data['pH2Odilsat_kPa'] = \
+            CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tsat_K'])
+        time_aligned_data['pH2Odilscal_Pa'] = time_aligned_data['pH2Odilsat_kPa'] * \
+                                              time_aligned_data['CVSDilAirRH_Avg_%'] / 100 * 1000
+        # 1065.645-5
+        time_aligned_data['Tdewdil_K'] = CFR1065.dewpoint_temp_K(time_aligned_data['pH2Odilscal_Pa'])
+        time_aligned_data['Tdewdil_°C'] = time_aligned_data['Tdewdil_K'] - 273.15
+        time_aligned_data['CVSDilAirDPTemp_°C'] = time_aligned_data['Tdewdil_°C']
+        time_aligned_data['pH2Odil_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
 
-            # 1065.645-3:
-            if test_type == 'transient':
-                time_aligned_data['xH2Odil_mol/mol'] = \
-                    time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
-            else:
-                time_aligned_data['xH2Odil_mol/mol'] = (
-                        time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
-                        time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
+        # 1065.645-3:
+        if test_type == 'transient':
+            time_aligned_data['xH2Odil_mol/mol'] = \
+                time_aligned_data['pH2Odil_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
         else:
-            # calculations based on dew point
-            time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
-            # 1065.645-1:
-            time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
-            if test_type == 'transient':
-                # TODO: verify this for transient non-RH-based calculations
-                # 1065.645-3:
-                time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
-            else:
-                # 1065.645-3:
-                time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            time_aligned_data['xH2Odil_mol/mol'] = (
+                    time_aligned_data['CVSDilAirRH_Avg_%'] / 100 *
+                    time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa'])
+    else:
+        # calculations based on dew point
+        time_aligned_data['Tdewdil_K'] = time_aligned_data['CVSDilAirDPTemp_Avg_°C'] + 273.15
+        # 1065.645-1:
+        time_aligned_data['pH2Odilsat_kPa'] = CFR1065.vapor_pressure_of_water_kPa(time_aligned_data['Tdewdil_K'])
+        if test_type == 'transient':
+            # TODO: verify this for transient non-RH-based calculations
+            # 1065.645-3:
+            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+        else:
+            # 1065.645-3:
+            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
@@ -311,18 +321,18 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     # 1065.655-20:
     time_aligned_data['alpha'] = \
-        CFR1065.alpha(time_aligned_data['qmFuel_Avg_%s'] % greek_units,
-                      time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
+        CFR1065.alpha(time_aligned_data['qmFuel_Avg_%s' % greek_units],
+                      time_aligned_data['DEFMassFlowRate_Avg_%s' % greek_units], units=greek_units)
 
     # 1065.655-21:
     time_aligned_data['beta'] = \
-        CFR1065.beta(time_aligned_data['qmFuel_Avg_%s'] % greek_units,
-                     time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
+        CFR1065.beta(time_aligned_data['qmFuel_Avg_%s' % greek_units],
+                     time_aligned_data['DEFMassFlowRate_Avg_%s' % greek_units], units=greek_units)
 
     # 1065.655-23:
     time_aligned_data['delta'] = \
         CFR1065.delta(time_aligned_data['qmFuel_Avg_%s' % greek_units],
-                      time_aligned_data['DEFMassFlowRate_Avg_%s'] % greek_units, units=greek_units)
+                      time_aligned_data['DEFMassFlowRate_Avg_%s' % greek_units], units=greek_units)
 
     time_aligned_data['gamma'] = 0  # no gamma for now
 
@@ -343,6 +353,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     if calc_mode == 'raw':
         time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['xH2Oint_mol/mol']
 
+    return time_aligned_data
+
 
 def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number, drift_corrected=False):
     """
@@ -358,12 +370,26 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
         Nothing, updates time_aligned_data
 
     """
+    if not drift_corrected:
+        BagData = phdp_globals.test_data['BagData']
+    else:
+        BagData = phdp_globals.test_data['drift_corrected_BagData']
+
     if calc_mode == 'raw':
         ctype = 'conRaw'
         COrange = 'H'
     else:
         ctype = 'con'
         COrange = 'L'
+
+    if calc_mode == 'dilute-bag':
+        # grab bag sample data for calcs
+        time_aligned_data['conCO2_Avg_%vol'] = BagData.loc[(BagData['RbComponent'] == 'CO2') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item() / 10000
+        time_aligned_data['conLCO_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'CO') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
+        time_aligned_data['conNOX_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'NOX') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
+        time_aligned_data['conN2O_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'N2O') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
+        time_aligned_data['conTHC_Avg_ppmC'] = BagData.loc[(BagData['RbComponent'] == 'THC') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
+        time_aligned_data['conCH4_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'CH4') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
 
     time_aligned_data['xDil/Exh_mol/mol'] = 0.8
     time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
@@ -408,11 +434,6 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
         # 1065.655-17
         time_aligned_data['xNO2dry_μmol/mol'] = \
             time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.25 / (1 - residual_H2O_pctvol / 100)
-
-        if not drift_corrected:
-            BagData = phdp_globals.test_data['BagData']
-        else:
-            BagData = phdp_globals.test_data['drift_corrected_BagData']
 
         # 1065.655(c)(1)
         ambient_CO2_conc_ppm = \
@@ -505,8 +526,13 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         constants['Mair_g/mol'] * (1 - time_aligned_data['xH2Oint_mol/mol']) + \
         constants['MH2O_g/mol'] * time_aligned_data['xH2Oint_mol/mol']
 
-    time_aligned_data['nint_mol/sec'] = \
-        time_aligned_data['qmIntakeAir_Avg_kg/h'] / 3.6 / time_aligned_data['Mmix_intake_g/mol']
+    if calc_mode == 'dilute-bag':
+        unit_rate = ''
+    else:
+        time_aligned_data['nint_mol/s'] = \
+            time_aligned_data['qmIntakeAir_Avg_kg/h'] / 3.6 / time_aligned_data['Mmix_intake_g/mol']
+
+        unit_rate = '/s'
 
     if calc_mode == 'raw':
         ctype = 'conRaw'
@@ -515,68 +541,86 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         testparam_prefix = 'Raw'
 
         # CFR 1065.655-24
-        time_aligned_data['nexh_mol/sec'] = \
-            (time_aligned_data['nint_mol/sec'] /
+        time_aligned_data['nexh_mol/s'] = \
+            (time_aligned_data['nint_mol/s'] /
              (1 + (time_aligned_data['xint/exhdry_mol/mol'] - time_aligned_data['xraw/exhdry_mol/mol']) /
               (1 + time_aligned_data['xH2Oexhdry_mol/mol'])))
 
-        flow_mol_per_sec = time_aligned_data['nexh_mol/sec']
+        flow_mol = time_aligned_data['nexh_mol/s']
     else:
         ctype = 'con'
         COrange = 'L'
         ems_prefix = 'Dil'
         testparam_prefix = 'Dilute'
 
-        # CFR 1065.655-26
-        time_aligned_data['nexh_mol/sec'] = \
-            (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
-            (1 - time_aligned_data['xH2Oexh_mol/mol']) * time_aligned_data['CVSFlow_mol/s'] + \
-            time_aligned_data['nint_mol/sec']
+        if calc_mode == 'dilute-bag':
+            flow_mol = time_aligned_data['CVSFlow_mol']
 
-        flow_mol_per_sec = time_aligned_data['CVSFlow_mol/s']
+            time_aligned_data['nint_mol'] = \
+                time_aligned_data['qmIntakeAir_Avg_kg'] * 1000 / time_aligned_data['Mmix_intake_g/mol']
 
-    # CFR 1065.659-1
-    xH2OCO2dilmeas = phdp_globals.test_data['EmsComponents'].loc[
-        phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO2_System' % ems_prefix]['ResidualH2O_%vol'].item()
-    time_aligned_data['xCO2exh_%mol'] = time_aligned_data['%sCO2_Avg_%%vol' % ctype] * \
-                                        ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCO2dilmeas / 100))
-    # CFR 1065.659-1
-    time_aligned_data['xTHCexh_μmol/mol'] = \
-        time_aligned_data['%sTHC_Avg_ppmC' % ctype] - \
-        phdp_globals.test_data['TestParameters']['Initial%sTHC_ppmC' % ems_prefix].item()
+            time_aligned_data['nexh_mol'] = (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data[
+                'xint/exhdry_mol/mol']) * flow_mol + time_aligned_data['nint_mol']
+        else:
+            flow_mol = time_aligned_data['CVSFlow_mol/s']
 
-    # CFR 1065.660-9
-    RFPFC2H6_Fraction = phdp_globals.test_data['TestParameters']['%sRFPFC2H6_Fraction' % testparam_prefix].item()
-    RFCH4_Fraction = phdp_globals.test_data['TestParameters']['%sRFCH4_Fraction' % testparam_prefix].item()
-    time_aligned_data['xCH4exh_μmol/mol'] = \
-        (time_aligned_data['%sCH4cutter_Avg_ppmC' % ctype] -
-         time_aligned_data['%sTHC_Avg_ppmC' % ctype] * RFPFC2H6_Fraction) / \
-        (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
+            # CFR 1065.655-26
+            time_aligned_data['nexh_mol/s'] = \
+                (time_aligned_data['xraw/exhdry_mol/mol'] - time_aligned_data['xint/exhdry_mol/mol']) * \
+                (1 - time_aligned_data['xH2Oexh_mol/mol']) * flow_mol + time_aligned_data['nint_mol/s']
 
-    # CFR 1065.660-4
-    time_aligned_data['xNMHCexh_μmol/mol'] = \
-        (time_aligned_data['xTHCexh_μmol/mol'] -
-         time_aligned_data['xCH4exh_μmol/mol'] * RFCH4_Fraction) / \
-        (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
+    if calc_mode == 'dilute-bag':
+        time_aligned_data['xCO2exh_%mol'] = time_aligned_data['conCO2_Avg_%vol']
+        time_aligned_data['xTHCexh_μmol/mol'] = time_aligned_data['conTHC_Avg_ppmC']
+        time_aligned_data['xCH4exh_μmol/mol'] = time_aligned_data['conCH4_Avg_ppm']
+        # CFR 1065.655-05
+        time_aligned_data['xNMHCexh_μmol/mol'] = time_aligned_data['xTHCexh_μmol/mol'] - time_aligned_data['xCH4exh_μmol/mol'] * 1 # TODO: 1 = Parameters!$C$25 ??
+        time_aligned_data['xCOexh_μmol/mol'] = time_aligned_data['conLCO_Avg_ppm']
+        time_aligned_data['xNOexh_μmol/mol'] = time_aligned_data['conNOX_Avg_ppm'] * 0.75
+        time_aligned_data['xNO2exh_μmol/mol'] = time_aligned_data['conNOX_Avg_ppm'] * 0.25
+    else:
+        # CFR 1065.659-1
+        xH2OCO2dilmeas = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO2_System' % ems_prefix]['ResidualH2O_%vol'].item()
+        time_aligned_data['xCO2exh_%mol'] = time_aligned_data['%sCO2_Avg_%%vol' % ctype] * \
+                                            ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCO2dilmeas / 100))
+        # CFR 1065.659-1
+        time_aligned_data['xTHCexh_μmol/mol'] = \
+            time_aligned_data['%sTHC_Avg_ppmC' % ctype] - \
+            phdp_globals.test_data['TestParameters']['Initial%sTHC_ppmC' % ems_prefix].item()
 
-    # CFR 1065.659-1
-    xH2OCOdilmeas = phdp_globals.test_data['EmsComponents'].loc[
-        phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO_System' % ems_prefix]['ResidualH2O_%vol'].item()
-    time_aligned_data['xCOexh_μmol/mol'] = \
-        time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)] * \
-        ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCOdilmeas / 100))
+        # CFR 1065.660-9
+        RFPFC2H6_Fraction = phdp_globals.test_data['TestParameters']['%sRFPFC2H6_Fraction' % testparam_prefix].item()
+        RFCH4_Fraction = phdp_globals.test_data['TestParameters']['%sRFCH4_Fraction' % testparam_prefix].item()
+        time_aligned_data['xCH4exh_μmol/mol'] = \
+            (time_aligned_data['%sCH4cutter_Avg_ppmC' % ctype] -
+             time_aligned_data['%sTHC_Avg_ppmC' % ctype] * RFPFC2H6_Fraction) / \
+            (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
 
-    # CFR 1065.659-1
-    xH2ONOxdilmeas = phdp_globals.test_data['EmsComponents'].loc[
-        phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sNOx_System' % ems_prefix]['ResidualH2O_%vol'].item()
-    time_aligned_data['xNOexh_μmol/mol'] = \
-        time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.75 * \
-        ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas / 100))
+        # CFR 1065.660-4
+        time_aligned_data['xNMHCexh_μmol/mol'] = \
+            (time_aligned_data['xTHCexh_μmol/mol'] -
+             time_aligned_data['xCH4exh_μmol/mol'] * RFCH4_Fraction) / \
+            (1 - RFPFC2H6_Fraction * RFCH4_Fraction)
 
-    # CFR 1065.659-1
-    time_aligned_data['xNO2exh_μmol/mol'] = \
-        time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.25 * \
-        ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas / 100))
+        # CFR 1065.659-1
+        xH2OCOdilmeas = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO_System' % ems_prefix]['ResidualH2O_%vol'].item()
+        time_aligned_data['xCOexh_μmol/mol'] = \
+            time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)] * \
+            ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCOdilmeas / 100))
+
+        # CFR 1065.659-1
+        xH2ONOxdilmeas = phdp_globals.test_data['EmsComponents'].loc[
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sNOx_System' % ems_prefix]['ResidualH2O_%vol'].item()
+        time_aligned_data['xNOexh_μmol/mol'] = \
+            time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.75 * \
+            ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas / 100))
+
+        # CFR 1065.659-1
+        time_aligned_data['xNO2exh_μmol/mol'] = \
+            time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.25 * \
+            ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas / 100))
 
     # CFR 1065.670-1
     time_aligned_data['xNOxcorrected_μmol/mol'] = \
@@ -584,44 +628,44 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         (9.953 * time_aligned_data['xH2Oint_mol/mol'] + 0.832)
 
     # CFR 1065.650-5
-    time_aligned_data['mCO2_g/sec'] = \
-        time_aligned_data['xCO2exh_%mol'] / 100 * constants['MCO2_g/mol'] * flow_mol_per_sec
+    time_aligned_data['mCO2_g%s' % unit_rate] = \
+        time_aligned_data['xCO2exh_%mol'] / 100 * constants['MCO2_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mCO_g/sec'] = \
-        time_aligned_data['xCOexh_μmol/mol'] / 1e6 * constants['MCO_g/mol'] * flow_mol_per_sec
+    time_aligned_data['mCO_g%s' % unit_rate] = \
+        time_aligned_data['xCOexh_μmol/mol'] / 1e6 * constants['MCO_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mCH4_g/sec'] = \
-        time_aligned_data['xCH4exh_μmol/mol'] / 1e6 * constants['MCH4_g/mol'] * flow_mol_per_sec
+    time_aligned_data['mCH4_g%s' % unit_rate] = \
+        time_aligned_data['xCH4exh_μmol/mol'] / 1e6 * constants['MCH4_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mTHC_g/sec'] = \
-        time_aligned_data['xTHCexh_μmol/mol'] / 1e6 * constants['MTHC_g/mol'] * flow_mol_per_sec
+    time_aligned_data['mTHC_g%s' % unit_rate] = \
+        time_aligned_data['xTHCexh_μmol/mol'] / 1e6 * constants['MTHC_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mNMHC_g/sec'] = \
-        time_aligned_data['xNMHCexh_μmol/mol'] / 1e6 * constants['MNMHC_g/mol'] * flow_mol_per_sec
+    time_aligned_data['mNMHC_g%s' % unit_rate] = \
+        time_aligned_data['xNMHCexh_μmol/mol'] / 1e6 * constants['MNMHC_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mNOxuncorrected_g/sec'] = \
+    time_aligned_data['mNOxuncorrected_g%s' % unit_rate] = \
         (time_aligned_data['xNOexh_μmol/mol'] + time_aligned_data['xNO2exh_μmol/mol']) / 1e6 * \
-        constants['MNOx_g/mol'] * flow_mol_per_sec
+        constants['MNOx_g/mol'] * flow_mol
 
     # CFR 1065.650-5
-    time_aligned_data['mNOxcorrected_g/sec'] = \
+    time_aligned_data['mNOxcorrected_g%s' % unit_rate] = \
         (time_aligned_data['xNOxcorrected_μmol/mol']) / 1e6 * \
-        constants['MNOx_g/mol'] * flow_mol_per_sec
+        constants['MNOx_g/mol'] * flow_mol
 
     # CFR 1065.650-5
     if '%sN2O_Avg_ppm' % ctype in time_aligned_data:
-        time_aligned_data['mN2O_g/sec'] = \
-            time_aligned_data['%sN2O_Avg_ppm' % ctype] / 1e6 * constants['MN2O_g/mol'] * flow_mol_per_sec
+        time_aligned_data['mN2O_g%s' % unit_rate] = \
+            time_aligned_data['%sN2O_Avg_ppm' % ctype] / 1e6 * constants['MN2O_g/mol'] * flow_mol
     else:
-        time_aligned_data['mN2O_g/sec'] = 0
+        time_aligned_data['mN2O_g%s' % unit_rate] = 0
 
     # CFR 1065.667(C)
-    time_aligned_data['ndil_mol/sec'] = time_aligned_data['CVSFlow_mol/s'] - time_aligned_data['nexh_mol/sec']
+    time_aligned_data['ndil_mol%s' % unit_rate] = time_aligned_data['CVSFlow_mol%s' % unit_rate] - time_aligned_data['nexh_mol%s' % unit_rate]
 
 
 def drift_correct_continuous_data(time_aligned_data, signal_name):
@@ -763,21 +807,29 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
         summary_results['avg_xN2O_μmol/mol'] = 0
     summary_results['avg_xNMHCexh_μmol/mol'] = time_aligned_data['xNMHCexh_μmol/mol'].mean()
 
-    SamplePeriod_s = constants['SamplePeriod_s']
+    if calc_mode == 'dilute-bag':
+        SamplePeriod_s = 1
+        summary_results['cycle_work_kWh'] = (
+                (time_aligned_data['Power_kW'] > 0) * time_aligned_data['Power_kW'] *
+                time_aligned_data['elapsed_time_s'] / 3600)
+        unit_rate = ''
+    else:
+        SamplePeriod_s = constants['SamplePeriod_s']
+        summary_results['cycle_work_kWh'] = (
+                ((time_aligned_data['Power_kW'] > 0) * time_aligned_data['Power_kW'] *
+                 SamplePeriod_s).sum() / 3600)
+        unit_rate = '/s'
 
-    summary_results['total_dilute_flow_mol'] = time_aligned_data['ndil_mol/sec'].sum() * SamplePeriod_s
-    summary_results['cycle_work_kWh'] = (
-            ((time_aligned_data['Power_kW'] > 0) * time_aligned_data['Power_kW'] *
-             SamplePeriod_s).sum() / 3600)
+    summary_results['total_dilute_flow_mol'] = time_aligned_data['ndil_mol%s' % unit_rate].sum() * SamplePeriod_s
 
     # calculate sample mass grams
-    summary_results['mCO2_g'] = time_aligned_data['mCO2_g/sec'].sum() * SamplePeriod_s
-    summary_results['mCO_g'] = time_aligned_data['mCO_g/sec'].sum() * SamplePeriod_s
-    summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g/sec'].sum() * SamplePeriod_s
-    summary_results['mTHC_g'] = time_aligned_data['mTHC_g/sec'].sum() * SamplePeriod_s
-    summary_results['mCH4_g'] = time_aligned_data['mCH4_g/sec'].sum() * SamplePeriod_s
-    summary_results['mN2O_g'] = time_aligned_data['mN2O_g/sec'].sum() * SamplePeriod_s
-    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g/sec'].sum() * SamplePeriod_s
+    summary_results['mCO2_g'] = time_aligned_data['mCO2_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mCO_g'] = time_aligned_data['mCO_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mNOx_g'] = time_aligned_data['mNOxcorrected_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mTHC_g'] = time_aligned_data['mTHC_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mCH4_g'] = time_aligned_data['mCH4_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mN2O_g'] = time_aligned_data['mN2O_g%s' % unit_rate].sum() * SamplePeriod_s
+    summary_results['mNMHC_g'] = time_aligned_data['mNMHC_g%s' % unit_rate].sum() * SamplePeriod_s
     summary_results['mNMHC_g+mNOx_g'] = summary_results['mNMHC_g'] + summary_results['mNOx_g']
 
     # calculate background mass grams
@@ -788,7 +840,7 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
     else:
         BagData = phdp_globals.test_data['drift_corrected_BagData']
 
-    if calc_mode == 'dilute':
+    if 'dilute' in calc_mode:
         # perform background emissions for dilute calcs
         for background_component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O']:
             background_conc = (
@@ -901,18 +953,26 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
                        constants['MCH4N2O_g/mol'])
 
     if calc_mode == 'raw':
-        flow_mol_per_sec = drift_corrected_time_aligned_data['nexh_mol/sec']
-    else:
-        flow_mol_per_sec = drift_corrected_time_aligned_data['CVSFlow_mol/s']
+        flow_mol = drift_corrected_time_aligned_data['nexh_mol/s']
+    elif calc_mode == 'dilute':
+        flow_mol = drift_corrected_time_aligned_data['CVSFlow_mol/s']
+        # CFR 1036.535-4
+        mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
+        # CFR 1065.643-1
+        nint_mol = drift_corrected_time_aligned_data['nint_mol/s'].sum() * SamplePeriod_s
+
+    else: # 'dilute-bag'
+        flow_mol = drift_corrected_time_aligned_data['CVSFlow_mol']
+        # CFR 1036.535-4
+        mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g']
+        nint_mol = drift_corrected_time_aligned_data['nint_mol']
 
     # CFR 1036.540-5
-    mfuel_term = (flow_mol_per_sec * drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
+    mfuel_term = (flow_mol * drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
                   (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s)
 
     mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
 
-    # CFR 1036.535-4
-    mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
     calculations_1036['mfuelcor_meas'] = mfuel_g * EmfuelCmeas / constants['EmfuelCref	MJ/kg'] / constants['wCref']
 
     # CFR 1036.535-4
@@ -958,8 +1018,6 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
              drift_corrected_time_aligned_data_summary_results['mCOnet_g'] / constants['MCO_g/mol'] +
              drift_corrected_time_aligned_data_summary_results['mTHCnet_g'] / constants['MTHC_g/mol']))
 
-    # CFR 1065.643-1
-    nint_mol = drift_corrected_time_aligned_data['nint_mol/sec'].sum() * SamplePeriod_s
     calculations_1036['mCair_g'] = constants['MC_g/mol'] * nint_mol * xCO2int_corr / 10 ** 6
 
     # CFR 1065.643-9
@@ -1351,7 +1409,7 @@ def run_phdp(runtime_options):
                         time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
                     # add calculated values
-                    pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type)
+                    time_aligned_data = pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type)
 
                     # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
                     iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_number)
@@ -1374,7 +1432,8 @@ def run_phdp(runtime_options):
                             drift_correct_bag_data(phdp_globals.test_data['drift_corrected_BagData'], idx)
 
                     # add calculated values
-                    pre_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode, test_type)
+                    drift_corrected_time_aligned_data = (
+                        pre_chemical_balance_calculations(drift_corrected_time_aligned_data, calc_mode, test_type))
 
                     # chemical balance iteration to calculate xDil/Exh_mol/mol, xH2Oexh_mol/mol and xCcombdry_mol/mol
                     iterate_chemical_balance(drift_corrected_time_aligned_data, calc_mode, emissions_cycle_number,
