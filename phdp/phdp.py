@@ -954,13 +954,16 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
 
     if calc_mode == 'raw':
         flow_mol = drift_corrected_time_aligned_data['nexh_mol/s']
+        # CFR 1036.535-4
+        mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
+        # CFR 1065.643-1
+        nint_mol = drift_corrected_time_aligned_data['nint_mol/s'].sum() * SamplePeriod_s
     elif calc_mode == 'dilute':
         flow_mol = drift_corrected_time_aligned_data['CVSFlow_mol/s']
         # CFR 1036.535-4
         mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
         # CFR 1065.643-1
         nint_mol = drift_corrected_time_aligned_data['nint_mol/s'].sum() * SamplePeriod_s
-
     else: # 'dilute-bag'
         flow_mol = drift_corrected_time_aligned_data['CVSFlow_mol']
         # CFR 1036.535-4
@@ -1365,7 +1368,7 @@ def run_phdp(runtime_options):
                 # no bag data for LLC tests, duration is too long for bagging
                 calc_modes.remove('dilute-bag')
 
-            calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
+            # calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
 
             for calc_mode in calc_modes:
                 results = \
