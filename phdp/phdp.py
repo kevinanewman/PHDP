@@ -206,41 +206,40 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     from constants import constants
 
     if calc_mode == 'dilute-bag':
-        # calculate average values
-        time_aligned_data_avg = time_aligned_data.apply(lambda x: [x.mean()])
-        time_aligned_data_sum = time_aligned_data.apply(lambda x: [x.sum()])
         if len(time_aligned_data) > 1:
-            time_aligned_data = pd.DataFrame({'elapsed_time_s': [time_aligned_data['elapsed_time_s'].iloc[0]],
-                                              'EmissionsCycleNumber_Integer': time_aligned_data['EmissionsCycleNumber_Integer'].iloc[0]})
+            # calculate average and total values
+            time_aligned_data_avg = time_aligned_data.apply(lambda x: [x.mean()])
+            time_aligned_data_sum = time_aligned_data.apply(lambda x: [x.sum()])
 
-        if 'qmIntakeAir_Avg_kg/h' in time_aligned_data_sum:
+            time_aligned_data = (
+                pd.DataFrame({'elapsed_time_s': [time_aligned_data['elapsed_time_s'].iloc[0]],
+                              'EmissionsCycleNumber_Integer': time_aligned_data['EmissionsCycleNumber_Integer']
+                             .iloc[0]}))
+
             time_aligned_data['qmIntakeAir_Avg_kg'] = (
                     time_aligned_data_sum['qmIntakeAir_Avg_kg/h'] / 3600 * constants['SamplePeriod_s'])
 
-        if 'qmFuel_Avg_g/h' in time_aligned_data_sum:
             time_aligned_data['qmFuel_Avg_g'] = (
                     time_aligned_data_sum['qmFuel_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
 
-        if 'DEFMassFlowRate_Avg_g/h' in time_aligned_data_sum:
             time_aligned_data['DEFMassFlowRate_Avg_g'] = (
                     time_aligned_data_sum['DEFMassFlowRate_Avg_g/h'] / 3600 * constants['SamplePeriod_s'])
 
-        time_aligned_data['IntakeAirPress_Avg_kPa'] = time_aligned_data_avg['IntakeAirPress_Avg_kPa']
-        time_aligned_data['tCellDewPt_Avg_°C'] = time_aligned_data_avg['tCellDewPt_Avg_°C']
+            time_aligned_data['IntakeAirPress_Avg_kPa'] = time_aligned_data_avg['IntakeAirPress_Avg_kPa']
+            time_aligned_data['tCellDewPt_Avg_°C'] = time_aligned_data_avg['tCellDewPt_Avg_°C']
 
-        time_aligned_data['CVSDilAirTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirTemp_Avg_°C']
-        time_aligned_data['CVSDilAirDPTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirDPTemp_Avg_°C']
+            time_aligned_data['CVSDilAirTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirTemp_Avg_°C']
+            time_aligned_data['CVSDilAirDPTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirDPTemp_Avg_°C']
 
-        if 'CVSMolarFlow_Avg_mol/s' in time_aligned_data_sum:
             time_aligned_data['CVSFlow_mol'] = (
                     time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
 
-        time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
+            time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
 
-        time_aligned_data['tqShaft_Avg_Nm'] = time_aligned_data_avg['tqShaft_Avg_Nm']
-        time_aligned_data['spDyno_Avg_rev/min'] = time_aligned_data_avg['spDyno_Avg_rev/min']
+            time_aligned_data['tqShaft_Avg_Nm'] = time_aligned_data_avg['tqShaft_Avg_Nm']
+            time_aligned_data['spDyno_Avg_rev/min'] = time_aligned_data_avg['spDyno_Avg_rev/min']
 
-        time_aligned_data['pCellAmbient_Avg_kPa'] = time_aligned_data_avg['pCellAmbient_Avg_kPa']
+            time_aligned_data['pCellAmbient_Avg_kPa'] = time_aligned_data_avg['pCellAmbient_Avg_kPa']
 
         unit_rate = ''
     else:
