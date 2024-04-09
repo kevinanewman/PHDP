@@ -794,9 +794,12 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
     if calc_mode == 'raw':
         ctype = 'conRaw'
         testparam_prefix = 'Raw'
-    else:
+    elif calc_mode == 'dilute':
         ctype = 'con'
         testparam_prefix = 'Dilute'
+    else:  # 'dilute-bag'
+        ctype = 'con'
+        testparam_prefix = 'Bag'
 
     # calculate summary values
     summary_results = pd.DataFrame(index=[0])
