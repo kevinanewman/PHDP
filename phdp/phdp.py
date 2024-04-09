@@ -386,12 +386,35 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
 
     if calc_mode == 'dilute-bag':
         # grab bag sample data for calcs
-        time_aligned_data['conCO2_Avg_%vol'] = BagData.loc[(BagData['RbComponent'] == 'CO2') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item() / 10000
-        time_aligned_data['conLCO_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'CO') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
-        time_aligned_data['conNOX_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'NOX') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
-        time_aligned_data['conN2O_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'N2O') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
-        time_aligned_data['conTHC_Avg_ppmC'] = BagData.loc[(BagData['RbComponent'] == 'THC') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
-        time_aligned_data['conCH4_Avg_ppm'] = BagData.loc[(BagData['RbComponent'] == 'CH4') & (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbSmpConc_ppm'].item()
+        time_aligned_data['conCO2_Avg_%vol'] = (
+                BagData.loc[(BagData['RbComponent'] == 'CO2') &
+                            (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+                'RbSmpConc_ppm'].item() / 10000)
+
+        time_aligned_data['conLCO_Avg_ppm'] = (
+            BagData.loc[(BagData['RbComponent'] == 'CO') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+            'RbSmpConc_ppm'].item())
+
+        time_aligned_data['conNOX_Avg_ppm'] = (
+            BagData.loc[(BagData['RbComponent'] == 'NOX') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+            'RbSmpConc_ppm'].item())
+
+        time_aligned_data['conN2O_Avg_ppm'] = (
+            BagData.loc[(BagData['RbComponent'] == 'N2O') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+            'RbSmpConc_ppm'].item())
+
+        time_aligned_data['conTHC_Avg_ppmC'] = (
+            BagData.loc[(BagData['RbComponent'] == 'THC') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+            'RbSmpConc_ppm'].item())
+
+        time_aligned_data['conCH4_Avg_ppm'] = (
+            BagData.loc[(BagData['RbComponent'] == 'CH4') &
+                        (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+            'RbSmpConc_ppm'].item())
 
     time_aligned_data['xDil/Exh_mol/mol'] = 0.8
     time_aligned_data['xH2Oexh_mol/mol'] = 2 * time_aligned_data['xH2Oint_mol/mol']
