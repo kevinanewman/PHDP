@@ -575,8 +575,10 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         time_aligned_data['xCO2exh_%mol'] = time_aligned_data['conCO2_Avg_%vol']
         time_aligned_data['xTHCexh_μmol/mol'] = time_aligned_data['conTHC_Avg_ppmC']
         time_aligned_data['xCH4exh_μmol/mol'] = time_aligned_data['conCH4_Avg_ppm']
-        # CFR 1065.655-05
-        time_aligned_data['xNMHCexh_μmol/mol'] = time_aligned_data['xTHCexh_μmol/mol'] - time_aligned_data['xCH4exh_μmol/mol'] * 1 # TODO: 1 = Parameters!$C$25 ??
+        # CFR 1065.660-05
+        time_aligned_data['xNMHCexh_μmol/mol'] = (
+                time_aligned_data['xTHCexh_μmol/mol'] -
+                phdp_globals.test_data['TestParameters']['BagRFCH4_Fraction'] * time_aligned_data['xCH4exh_μmol/mol'])
         time_aligned_data['xCOexh_μmol/mol'] = time_aligned_data['conLCO_Avg_ppm']
         time_aligned_data['xNOexh_μmol/mol'] = time_aligned_data['conNOX_Avg_ppm'] * 0.75
         time_aligned_data['xNO2exh_μmol/mol'] = time_aligned_data['conNOX_Avg_ppm'] * 0.25
