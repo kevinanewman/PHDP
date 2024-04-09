@@ -951,8 +951,12 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
             BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item()
 
     # CFR 1036.535-2
-    mDEF_g = drift_corrected_time_aligned_data[
+    if 'DEFMassFlowRate_Avg_g' in drift_corrected_time_aligned_data:
+        mDEF_g = drift_corrected_time_aligned_data['DEFMassFlowRate_Avg_g']
+    else:
+        mDEF_g = drift_corrected_time_aligned_data[
                  'DEFMassFlowRate_Avg_g/h'].sum() * SamplePeriod_s / 3600
+
     mdot_avg_CO2DEF = (mDEF_g * constants['MCO2_g/mol'] * constants['wCH4N2O_Mass Fraction of urea in DEF'] /
                        constants['MCH4N2O_g/mol'])
 
@@ -968,7 +972,7 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
         mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g/h'].sum() * SamplePeriod_s / 3600
         # CFR 1065.643-1
         nint_mol = drift_corrected_time_aligned_data['nint_mol/s'].sum() * SamplePeriod_s
-    else: # 'dilute-bag'
+    else:  # 'dilute-bag'
         flow_mol = drift_corrected_time_aligned_data['CVSFlow_mol']
         # CFR 1036.535-4
         mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g']
@@ -1372,7 +1376,7 @@ def run_phdp(runtime_options):
                 # no bag data for LLC tests, duration is too long for bagging
                 calc_modes.remove('dilute-bag')
 
-            # calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
+            calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
 
             for calc_mode in calc_modes:
                 results = \
