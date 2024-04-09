@@ -1014,11 +1014,18 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
         mfuel_g = drift_corrected_time_aligned_data['qmFuel_Avg_g']
         nint_mol = drift_corrected_time_aligned_data['nint_mol']
 
-    # CFR 1036.540-5
-    mfuel_term = (flow_mol * drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
-                  (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s)
+    if calc_mode == 'dilute-bag':
+        # CFR 1036.540-6
+        mfuel_cycle = constants['MC_g/mol'] / wCmeas * (drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
+                                                        (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol'])
+                                                        * drift_corrected_time_aligned_data['CVSFlow_mol'] -
+                                                        mdot_avg_CO2DEF / constants['MCO2_g/mol'])
+    else:
+        # CFR 1036.540-5
+        mfuel_term = (flow_mol * drift_corrected_time_aligned_data['xCcombdry_mol/mol'] /
+                      (1 + drift_corrected_time_aligned_data['xH2Oexhdry_mol/mol']) * SamplePeriod_s)
 
-    mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
+        mfuel_cycle = constants['MC_g/mol'] / wCmeas * (sum(mfuel_term) - mdot_avg_CO2DEF / constants['MCO2_g/mol'])
 
     calculations_1036['mfuelcor_meas'] = mfuel_g * EmfuelCmeas / constants['EmfuelCref	MJ/kg'] / constants['wCref']
 
