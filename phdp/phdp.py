@@ -207,6 +207,9 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     if calc_mode == 'dilute-bag':
         if len(time_aligned_data) > 1:
+            time_aligned_data['Power_kW'] = (
+                np.maximum(0, time_aligned_data['tqShaft_Avg_Nm'] * time_aligned_data['spDyno_Avg_rev/min'] / 9548.8))
+
             # calculate average and total values
             time_aligned_data_avg = time_aligned_data.apply(lambda x: [x.mean()])
             time_aligned_data_sum = time_aligned_data.apply(lambda x: [x.sum()])
@@ -215,6 +218,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
                 pd.DataFrame({'elapsed_time_s': [time_aligned_data['elapsed_time_s'].iloc[0]],
                               'EmissionsCycleNumber_Integer': time_aligned_data['EmissionsCycleNumber_Integer']
                              .iloc[0]}))
+
+            time_aligned_data['Power_kW'] = time_aligned_data_avg['Power_kW']
 
             time_aligned_data['qmIntakeAir_Avg_kg'] = (
                     time_aligned_data_sum['qmIntakeAir_Avg_kg/h'] / 3600 * constants['SamplePeriod_s'])
@@ -236,14 +241,14 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
             time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
 
-            time_aligned_data['tqShaft_Avg_Nm'] = time_aligned_data_avg['tqShaft_Avg_Nm']
-            time_aligned_data['spDyno_Avg_rev/min'] = time_aligned_data_avg['spDyno_Avg_rev/min']
-
             time_aligned_data['pCellAmbient_Avg_kPa'] = time_aligned_data_avg['pCellAmbient_Avg_kPa']
 
         unit_rate = ''
     else:
         unit_rate = '/s'
+
+        time_aligned_data['Power_kW'] = (
+            np.maximum(0, time_aligned_data['tqShaft_Avg_Nm'] * time_aligned_data['spDyno_Avg_rev/min'] / 9548.8))
 
         time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
 
@@ -307,8 +312,6 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
-    time_aligned_data['Power_kW'] = \
-        np.maximum(0, time_aligned_data['tqShaft_Avg_Nm'] * time_aligned_data['spDyno_Avg_rev/min'] / 9548.8)
 
     if 'DEFMassFlowRate_Avg_g/h' not in time_aligned_data:
         time_aligned_data['DEFMassFlowRate_Avg_g/h'] = 0
