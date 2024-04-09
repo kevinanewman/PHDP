@@ -423,6 +423,11 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
                                                       time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)]) / 1e6
     time_aligned_data['xH2dry_μmol/mol'] = 0
     time_aligned_data['xint/exhdry_mol/mol'] = 0
+
+    if calc_mode == 'dilute-bag':
+        # special treatment for bag calculations:
+        phdp_globals.test_data['EmsComponents']['ResidualH2O_%vol'] = time_aligned_data['xH2Oexh_mol/mol'].item() * 100
+
     time_aligned_data_prior = pd.DataFrame()
     converged = False
     iteration = 0
@@ -511,6 +516,11 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
 
         # 1065.655-3
         time_aligned_data['xCcombdry_mol/mol'] = CFR1065.xccombdry(time_aligned_data)
+
+        if calc_mode == 'dilute-bag':
+            # special treatment for bag calculations:
+            phdp_globals.test_data['EmsComponents']['ResidualH2O_%vol'] = (
+                    time_aligned_data['xH2Oexh_mol/mol'].item() * 100)
 
         if iteration == 0:
             converged = False
@@ -1402,7 +1412,7 @@ def run_phdp(runtime_options):
                 # no bag data for LLC tests, duration is too long for bagging
                 calc_modes.remove('dilute-bag')
 
-            calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
+            # calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
 
             for calc_mode in calc_modes:
                 results = \
