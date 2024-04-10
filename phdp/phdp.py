@@ -1425,8 +1425,6 @@ def run_phdp(runtime_options):
                 # no bag data for LLC tests, duration is too long for bagging
                 calc_modes.remove('dilute-bag')
 
-            # calc_modes = ['dilute-bag']  # JUST FOR TESTING!!
-
             for calc_mode in calc_modes:
                 results = \
                     {'1036_calculations': [], 'tad': [], 'tadsummary': [], 'dctad': [], 'dctadsummary': []}
