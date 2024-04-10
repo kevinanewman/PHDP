@@ -270,8 +270,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
             else:
                 # TODO: need to verify if this is correct for HD05 transient (FTP) test
                 time_aligned_data['CVSFlow_mol/s'] = (
-                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
-                        phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'].item())
+                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] /
+                        0.024055 + phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'].item())
         else:
             if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
                 time_aligned_data['qvCVS_Avg_m³/s'] = time_aligned_data['qvCVS_Avg_m³/min'] / 60
@@ -281,8 +281,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
                      phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'] / 1000) / 0.024055)
             else:
                 time_aligned_data['CVSFlow_mol/s'] = (
-                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055 +
-                        phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
+                        time_aligned_data['CVSMolarFlow_Avg_mol/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] /
+                        0.024055 + phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'])
 
     time_aligned_data['Tsat_K'] = time_aligned_data['CVSDilAirTemp_Avg_°C'] + 273.15
 
