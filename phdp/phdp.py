@@ -180,12 +180,14 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
 
     test_end_index = time_aligned_data[time_aligned_data['ModeNumber_Integer'] == -1].index[0]
 
+    time_aligned_data['time_s'] = time_aligned_data['Time_Date'] * 24 * 3600
+
+    time_aligned_data['elapsed_time_s'] = (
+            time_aligned_data['time_s'].iloc[test_end_index] - time_aligned_data['time_s'].iloc[test_start_index])
+
     time_aligned_data = time_aligned_data.iloc[test_start_index:test_end_index]
 
     time_aligned_data = time_aligned_data.fillna(0)  # TODO: for now, need to confirm...
-
-    time_aligned_data['time_s'] = time_aligned_data['Time_Date'] * 24 * 3600
-    time_aligned_data['elapsed_time_s'] = time_aligned_data['time_s'].iloc[-1] - time_aligned_data['time_s'].iloc[0]
 
     return time_aligned_data
 
