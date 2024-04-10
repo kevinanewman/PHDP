@@ -238,8 +238,16 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
             time_aligned_data['CVSDilAirTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirTemp_Avg_°C']
             time_aligned_data['CVSDilAirDPTemp_Avg_°C'] = time_aligned_data_avg['CVSDilAirDPTemp_Avg_°C']
 
+            # time_aligned_data['CVSFlow_mol'] = (
+            #         time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
+
+            time_aligned_data_sum['BagFillFlow_Avg_m³/s'] = time_aligned_data_sum['BagFillFlow_Avg_l/min'] / 60000
+
             time_aligned_data['CVSFlow_mol'] = (
-                    time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] * constants['SamplePeriod_s'])
+                    (time_aligned_data_sum['CVSMolarFlow_Avg_mol/s'] +
+                     time_aligned_data_sum['BagFillFlow_Avg_m³/s'] / 0.024055) * constants['SamplePeriod_s'] +
+                    phdp_globals.test_data['TestParameters']['DiluteSampleMolarFlow_mol/s'] *
+                    time_aligned_data['elapsed_time_s'])
 
             time_aligned_data['tIntakeAir_Avg_°C'] = time_aligned_data_avg['tIntakeAir_Avg_°C']
 
