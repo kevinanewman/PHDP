@@ -12,6 +12,7 @@ import sys, os
 
 import numpy as np
 import pandas as pd
+import scipy
 
 path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(path, '..'))  # picks up omega_model sub-packages
@@ -1360,6 +1361,132 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
                        header=False)
 
 
+def calc_stats(ref, meas):
+    slope, intercept, r_value, _, _ = scipy.stats.linregress(ref, meas)
+
+    n = len(ref)
+    y_pred = slope*ref+intercept
+
+    STEYX = (((meas-y_pred)**2).sum()/(n-2))**0.5
+
+    return {'slope': slope, 'intercept': intercept, 'R2': r_value**2, 'SEE': STEYX}
+
+
+def pass_fail_range(value, range):
+    if range[0] <= value <= range[1]:
+        return 'pass'
+    else:
+        return 'FAIL'
+
+
+def validate_data():
+    # set up cycle data
+    reference = dict()
+    reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']
+    reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']
+    reference['power_kW'] = reference['speed_rpm'] * reference['torque_Nm'] / 9548.8
+
+    # set up limits
+    warm_idle_rpm = phdp_globals.test_data['MapResults']['EngLowIdleSpeed_rev/min'].item()
+    map_max_torque_Nm = phdp_globals.test_data['MapResults']['EngMaxTorque_Nm'].item()
+    map_max_power_kW = phdp_globals.test_data['MapResults']['EngPeakPower_kW'].item()
+    map_max_test_speed_rpm = phdp_globals.test_data['MapResults']['EngNrefCFR1065_rev/min'].item()
+
+    limits = dict({'speed_rpm': dict(), 'torque_Nm': dict(), 'power_kW': dict()})
+    limits['speed_rpm']['slope'] = (0.95, 1.03)
+    limits['speed_rpm']['intercept'] = (-0.1 * warm_idle_rpm, 0.1 * warm_idle_rpm)
+    limits['speed_rpm']['R2'] = (0.97, np.inf)
+    limits['speed_rpm']['SEE'] = (-np.inf, 0.05 * map_max_test_speed_rpm)
+
+    limits['torque_Nm']['slope'] = (0.83, 1.03)
+    limits['torque_Nm']['intercept'] = (-0.02 * map_max_torque_Nm, 0.02 * map_max_torque_Nm)
+    limits['torque_Nm']['R2'] = (0.85, np.inf)
+    limits['torque_Nm']['SEE'] = (-np.inf, 0.1 * map_max_torque_Nm)
+
+    limits['power_kW']['slope'] = (0.83, 1.03)
+    limits['power_kW']['intercept'] = (-0.02 * map_max_power_kW, 0.02 * map_max_power_kW)
+    limits['power_kW']['R2'] = (0.91, np.inf)
+    limits['power_kW']['SEE'] = (-np.inf, 0.1 * map_max_power_kW)
+
+    SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
+    samples_per_second = int(1 / SamplePeriod_s)
+
+    for shift in range(0, 11):
+        time_shift = shift * SamplePeriod_s
+
+        start_index = phdp_globals.test_data['ContinuousData'].loc[
+                      phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1, :].index[-1] + shift
+        max_index = phdp_globals.test_data['ContinuousData'].index[-1]
+        end_index = min(max_index, phdp_globals.test_data['ContinuousData'].loc[
+                    phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1, :].index[0] + shift)
+
+        validation_data = dict()
+
+        validation_data['measured_throttle_pct'] = phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'
+                                ].loc[start_index:end_index:samples_per_second].values
+        if len(validation_data['measured_throttle_pct']) < len(reference['speed_rpm']):
+            # append last available data point if test data is cut short
+            validation_data['measured_throttle_pct'] = np.append(validation_data['measured_throttle_pct'],
+                      phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'].iloc[-1])
+
+        validation_data['measured_speed_rpm'] = phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'
+                             ].loc[start_index:end_index:samples_per_second].values
+        if len(validation_data['measured_speed_rpm']) < len(reference['speed_rpm']):
+            # append last available data point if test data is cut short
+            validation_data['measured_speed_rpm'] = np.append(validation_data['measured_speed_rpm'],
+                      phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'].iloc[-1])
+
+        validation_data['measured_torque_Nm'] = phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'
+                             ].loc[start_index:end_index:samples_per_second].values
+        if len(validation_data['measured_torque_Nm']) < len(reference['speed_rpm']):
+            # append last available data point if test data is cut short
+            validation_data['measured_torque_Nm'] = np.append(validation_data['measured_torque_Nm'],
+                      phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'].iloc[-1])
+
+        validation_data['measured_power_kW'] = (
+                validation_data['measured_speed_rpm'] * validation_data['measured_torque_Nm'] / 9548.8)
+
+        not_motoring = ~(reference['torque_Nm'] < 0)
+
+        not_high_speed_at_idle = ~(
+            (validation_data['measured_throttle_pct'] == 0) &
+            (validation_data['measured_speed_rpm'] > reference['speed_rpm']) &
+            (validation_data['measured_speed_rpm'] <= 1.02 * reference['speed_rpm']) &
+            (validation_data['measured_torque_Nm'] <= 0.02 * map_max_torque_Nm))
+
+        not_high_torque_at_idle = ~(
+                (validation_data['measured_throttle_pct'] == 0) &
+                (validation_data['measured_torque_Nm'] > reference['torque_Nm']) &
+                (validation_data['measured_speed_rpm'] <= 1.02 * reference['speed_rpm']) &
+                (validation_data['measured_torque_Nm'] <= 0.02 * map_max_torque_Nm))
+
+        not_low_speed_at_full_throttle = ~(
+                (validation_data['measured_throttle_pct'] == 100) &
+                (validation_data['measured_speed_rpm'] <= reference['speed_rpm']) &
+                (validation_data['measured_speed_rpm'] >= 1.02 * reference['speed_rpm']) &
+                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * map_max_torque_Nm)))
+
+        not_low_torque_at_full_throttle = ~(
+                (validation_data['measured_throttle_pct'] == 100) &
+                (validation_data['measured_torque_Nm'] <= reference['torque_Nm']) &
+                (validation_data['measured_speed_rpm'] >= 1.02 * reference['speed_rpm']) &
+                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * map_max_torque_Nm)))
+
+        validation_data['speed_rpm_valid'] = not_high_speed_at_idle & not_low_speed_at_full_throttle
+        validation_data['torque_Nm_valid'] = not_motoring & not_high_torque_at_idle & not_low_torque_at_full_throttle
+        validation_data['power_kW_valid'] = (validation_data['torque_Nm_valid'] & validation_data['speed_rpm_valid'])
+
+        for stp in ['speed_rpm', 'torque_Nm', 'power_kW']:
+            # print(stp)
+            ref = reference[stp][validation_data['%s_valid' % stp]]
+            meas = validation_data['measured_%s' % stp][validation_data['%s_valid' % stp]]
+            stats = calc_stats(ref, meas)
+            # print_dict(stats)
+            for k in stats:
+                print('%10s' % k, pass_fail_range(stats[k], limits[stp][k]), stp, time_shift)
+            print()
+
+
 def run_phdp(runtime_options):
     """
     Run Post-Horiba Data Processing and generate output summary and report files
@@ -1408,6 +1535,8 @@ def run_phdp(runtime_options):
 
             # load data
             load_data(test_site)
+
+            validate_data()
 
             if test_type == 'transient':
                 emissions_cycles = \
