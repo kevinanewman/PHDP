@@ -1470,7 +1470,7 @@ def validate_data():
         somewhat_above_speed_at_min_demand = (
                 (validation_data['measured_throttle_pct'] == 0) &
                 (validation_data['measured_speed_rpm'] > reference['speed_rpm']) &
-                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) &
+                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) |
                   (validation_data['measured_torque_Nm'] > (reference['torque_Nm'] + 0.02 * T_max_mapped_Nm)))
         )
         validation_data['somewhat_above_speed_at_min_demand'] = somewhat_above_speed_at_min_demand
@@ -1479,25 +1479,25 @@ def validate_data():
         somewhat_above_torque_at_min_demand = (
                 (validation_data['measured_throttle_pct'] == 0) &
                 (validation_data['measured_torque_Nm'] > reference['torque_Nm']) &
-                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) &
+                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) |
                   (validation_data['measured_torque_Nm'] > (reference['torque_Nm'] + 0.02 * T_max_mapped_Nm)))
         )
         validation_data['somewhat_above_torque_at_min_demand'] = somewhat_above_torque_at_min_demand
 
         # from CFR, speed/power check? "Speed/Power Full Load, Speed < Reference":
         somewhat_below_speed_at_max_demand = (
-                (validation_data['measured_throttle_pct'] == 100) &
+                (validation_data['measured_throttle_pct'] >= 99.0) &
                 (validation_data['measured_speed_rpm'] < reference['speed_rpm']) &
-                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) &
+                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) |
                   (validation_data['measured_torque_Nm'] < (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
         )
         validation_data['somewhat_below_speed_at_max_demand'] = somewhat_below_speed_at_max_demand
 
         # from CFR, torque/power check? "Torque/Power Full Load, Torque < Reference":
         somewhat_below_torque_at_max_demand = (
-                (validation_data['measured_throttle_pct'] == 100) &
-                (validation_data['measured_torque_Nm'] < reference['torque_Nm']) &
-                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) &
+                (validation_data['measured_throttle_pct'] >= 99.0) &
+                (validation_data['measured_torque_Nm'] < reference['torque_Nm']) |
+                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) |
                   (validation_data['measured_torque_Nm'] < (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
         )
         validation_data['somewhat_below_torque_at_max_demand'] = somewhat_below_torque_at_max_demand
