@@ -1388,25 +1388,25 @@ def validate_data():
 
     # set up limits
     warm_idle_rpm = phdp_globals.test_data['MapResults']['EngLowIdleSpeed_rev/min'].item()
-    map_max_torque_Nm = phdp_globals.test_data['MapResults']['EngMaxTorque_Nm'].item()
-    map_max_power_kW = phdp_globals.test_data['MapResults']['EngPeakPower_kW'].item()
-    map_max_test_speed_rpm = phdp_globals.test_data['MapResults']['EngNrefCFR1065_rev/min'].item()
+    T_max_mapped_Nm = phdp_globals.test_data['MapResults']['EngMaxTorque_Nm'].item()
+    P_max_mapped_kW = phdp_globals.test_data['MapResults']['EngPeakPower_kW'].item()
+    maximum_test_speed_rpm = phdp_globals.test_data['MapResults']['EngNrefCFR1065_rev/min'].item()
 
     limits = dict({'speed_rpm': dict(), 'torque_Nm': dict(), 'power_kW': dict()})
     limits['speed_rpm']['slope'] = (0.95, 1.03)
     limits['speed_rpm']['intercept'] = (-0.1 * warm_idle_rpm, 0.1 * warm_idle_rpm)
     limits['speed_rpm']['R2'] = (0.97, np.inf)
-    limits['speed_rpm']['SEE'] = (-np.inf, 0.05 * map_max_test_speed_rpm)
+    limits['speed_rpm']['SEE'] = (-np.inf, 0.05 * maximum_test_speed_rpm)
 
     limits['torque_Nm']['slope'] = (0.83, 1.03)
-    limits['torque_Nm']['intercept'] = (-0.02 * map_max_torque_Nm, 0.02 * map_max_torque_Nm)
+    limits['torque_Nm']['intercept'] = (-0.02 * T_max_mapped_Nm, 0.02 * T_max_mapped_Nm)
     limits['torque_Nm']['R2'] = (0.85, np.inf)
-    limits['torque_Nm']['SEE'] = (-np.inf, 0.1 * map_max_torque_Nm)
+    limits['torque_Nm']['SEE'] = (-np.inf, 0.1 * T_max_mapped_Nm)
 
     limits['power_kW']['slope'] = (0.83, 1.03)
-    limits['power_kW']['intercept'] = (-0.02 * map_max_power_kW, 0.02 * map_max_power_kW)
+    limits['power_kW']['intercept'] = (-0.02 * P_max_mapped_kW, 0.02 * P_max_mapped_kW)
     limits['power_kW']['R2'] = (0.91, np.inf)
-    limits['power_kW']['SEE'] = (-np.inf, 0.1 * map_max_power_kW)
+    limits['power_kW']['SEE'] = (-np.inf, 0.1 * P_max_mapped_kW)
 
     SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
     samples_per_second = int(1 / SamplePeriod_s)
@@ -1429,12 +1429,16 @@ def validate_data():
             validation_data['measured_throttle_pct'] = np.append(validation_data['measured_throttle_pct'],
                       phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'].iloc[-1])
 
+        validation_data['reference_speed_rpm'] = reference['speed_rpm']
+
         validation_data['measured_speed_rpm'] = phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'
                              ].loc[start_index:end_index:samples_per_second].values
         if len(validation_data['measured_speed_rpm']) < len(reference['speed_rpm']):
             # append last available data point if test data is cut short
             validation_data['measured_speed_rpm'] = np.append(validation_data['measured_speed_rpm'],
                       phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'].iloc[-1])
+
+        validation_data['reference_torque_Nm'] = reference['torque_Nm']
 
         validation_data['measured_torque_Nm'] = phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'
                              ].loc[start_index:end_index:samples_per_second].values
@@ -1443,42 +1447,69 @@ def validate_data():
             validation_data['measured_torque_Nm'] = np.append(validation_data['measured_torque_Nm'],
                       phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'].iloc[-1])
 
+        validation_data['reference_power_kW'] = reference['power_kW']
+
         validation_data['measured_power_kW'] = (
                 validation_data['measured_speed_rpm'] * validation_data['measured_torque_Nm'] / 9548.8)
 
-        # # from CFR, torque/power check? "Motoring point":
-        # motoring_at_min_demand = ((validation_data['measured_throttle_pct'] == 0) &
-        #             (reference['torque_Nm'] < 0))
-        #
-        # # from CFR, speed/power check?:
-        # idling_at_min_demand = ((validation_data['measured_throttle_pct'] == 0) &
-        #           (reference['speed_rpm'] == warm_idle_rpm) & (reference['torque_Nm'] == 0) &
-        #           ((reference['torque_Nm'] - 0.02 * map_max_torque_Nm) <
-        #            validation_data['measured_torque_Nm'] <
-        #            (reference['torque_Nm'] + 0.02 * map_max_torque_Nm))
-        #           )
-        #
-        # # from CFR, speed/power check? "Speed/Power No Load, Speed > Reference"?:
-        # somewhat_above_speed_at_min_demand = ((validation_data['measured_throttle_pct'] == 0) &
-        #               (validation_data['measured_speed_rpm'] > reference['speed_rpm']) &
-        #               ~(validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02))
-        #
-        # # from CFR, torque/power check? "Torque/Power No Load, Torque > Reference":
-        # somewhat_above_torque_at_min_demand = ((validation_data['measured_throttle_pct'] == 0) &
-        #               (validation_data['measured_torque_Nm'] > reference['torque_Nm']) &
-        #               ~(validation_data['measured_torque_Nm'] > (reference['torque_Nm'] + 0.02 * map_max_torque_Nm))
-        #                )
-        #
-        # # from CFR, speed/power check? "Speed/Power Full Load, Speed < Reference":
-        # somewhat_below_speed_at_max_demand = ((validation_data['measured_throttle_pct'] == 100) &
-        #               (validation_data['measured_speed_rpm'] < reference['speed_rpm']) &
-        #               ~(validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98))
-        #
-        # # from CFR, torque/power check? "Torque/Power Full Load, Torque < Reference":
-        # somewhat_below_torque_at_max_demand = ((validation_data['measured_throttle_pct'] == 100) &
-        #               (validation_data['measured_torque_Nm'] < reference['torque_Nm']) &
-        #               ~(validation_data['measured_torque_Nm'] < (reference['torque_Nm'] - 0.02 * map_max_torque_Nm))
-        #                )
+        # from CFR, torque/power check? "Motoring point":
+        motoring_at_min_demand = ((validation_data['measured_throttle_pct'] == 0) &
+                    (reference['torque_Nm'] < 0))
+        validation_data['motoring_at_min_demand'] = motoring_at_min_demand
+
+        # from CFR, speed/power check?:
+        idling_at_min_demand = (
+                (validation_data['measured_throttle_pct'] == 0) &
+                (reference['speed_rpm'] == warm_idle_rpm) & (reference['torque_Nm'] == 0) &
+                ((reference['torque_Nm'] - 0.02 * T_max_mapped_Nm) < validation_data['measured_torque_Nm']) &
+                (validation_data['measured_torque_Nm'] < (reference['torque_Nm'] + 0.02 * T_max_mapped_Nm))
+        )
+        validation_data['idling_at_min_demand'] = idling_at_min_demand
+
+        # from CFR, speed/power check? "Speed/Power No Load, Speed > Reference"?:
+        somewhat_above_speed_at_min_demand = (
+                (validation_data['measured_throttle_pct'] == 0) &
+                (validation_data['measured_speed_rpm'] > reference['speed_rpm']) &
+                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) &
+                  (validation_data['measured_torque_Nm'] > (reference['torque_Nm'] + 0.02 * T_max_mapped_Nm)))
+        )
+        validation_data['somewhat_above_speed_at_min_demand'] = somewhat_above_speed_at_min_demand
+
+        # from CFR, torque/power check? "Torque/Power No Load, Torque > Reference":
+        somewhat_above_torque_at_min_demand = (
+                (validation_data['measured_throttle_pct'] == 0) &
+                (validation_data['measured_torque_Nm'] > reference['torque_Nm']) &
+                ~((validation_data['measured_speed_rpm'] > reference['speed_rpm'] * 1.02) &
+                  (validation_data['measured_torque_Nm'] > (reference['torque_Nm'] + 0.02 * T_max_mapped_Nm)))
+        )
+        validation_data['somewhat_above_torque_at_min_demand'] = somewhat_above_torque_at_min_demand
+
+        # from CFR, speed/power check? "Speed/Power Full Load, Speed < Reference":
+        somewhat_below_speed_at_max_demand = (
+                (validation_data['measured_throttle_pct'] == 100) &
+                (validation_data['measured_speed_rpm'] < reference['speed_rpm']) &
+                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) &
+                  (validation_data['measured_torque_Nm'] < (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
+        )
+        validation_data['somewhat_below_speed_at_max_demand'] = somewhat_below_speed_at_max_demand
+
+        # from CFR, torque/power check? "Torque/Power Full Load, Torque < Reference":
+        somewhat_below_torque_at_max_demand = (
+                (validation_data['measured_throttle_pct'] == 100) &
+                (validation_data['measured_torque_Nm'] < reference['torque_Nm']) &
+                ~((validation_data['measured_speed_rpm'] < reference['speed_rpm'] * 0.98) &
+                  (validation_data['measured_torque_Nm'] < (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
+        )
+        validation_data['somewhat_below_torque_at_max_demand'] = somewhat_below_torque_at_max_demand
+
+        validation_data['speed_rpm_omittable'] = (
+                idling_at_min_demand | somewhat_above_speed_at_min_demand | somewhat_below_speed_at_max_demand)
+
+        validation_data['torque_Nm_omittable'] = (
+                motoring_at_min_demand | somewhat_above_torque_at_min_demand | somewhat_below_torque_at_max_demand)
+
+        validation_data['power_kW_omittable'] = (
+                validation_data['speed_rpm_omittable'] | validation_data['torque_Nm_omittable'])
 
         not_motoring = ~(reference['torque_Nm'] < 0)
 
@@ -1486,29 +1517,31 @@ def validate_data():
             (validation_data['measured_throttle_pct'] == 0) &
             (validation_data['measured_speed_rpm'] > reference['speed_rpm']) &
             (validation_data['measured_speed_rpm'] <= 1.02 * reference['speed_rpm']) &
-            (validation_data['measured_torque_Nm'] <= 0.02 * map_max_torque_Nm))
+            (validation_data['measured_torque_Nm'] <= 0.02 * T_max_mapped_Nm))
 
         not_high_torque_at_idle = ~(
                 (validation_data['measured_throttle_pct'] == 0) &
                 (validation_data['measured_torque_Nm'] > reference['torque_Nm']) &
                 (validation_data['measured_speed_rpm'] <= 1.02 * reference['speed_rpm']) &
-                (validation_data['measured_torque_Nm'] <= 0.02 * map_max_torque_Nm))
+                (validation_data['measured_torque_Nm'] <= 0.02 * T_max_mapped_Nm))
 
         not_low_speed_at_full_throttle = ~(
                 (validation_data['measured_throttle_pct'] == 100) &
                 (validation_data['measured_speed_rpm'] <= reference['speed_rpm']) &
                 (validation_data['measured_speed_rpm'] >= 1.02 * reference['speed_rpm']) &
-                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * map_max_torque_Nm)))
+                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
 
         not_low_torque_at_full_throttle = ~(
                 (validation_data['measured_throttle_pct'] == 100) &
                 (validation_data['measured_torque_Nm'] <= reference['torque_Nm']) &
                 (validation_data['measured_speed_rpm'] >= 1.02 * reference['speed_rpm']) &
-                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * map_max_torque_Nm)))
+                (validation_data['measured_torque_Nm'] >= (reference['torque_Nm'] - 0.02 * T_max_mapped_Nm)))
 
         validation_data['speed_rpm_valid'] = not_high_speed_at_idle & not_low_speed_at_full_throttle
         validation_data['torque_Nm_valid'] = not_motoring & not_high_torque_at_idle & not_low_torque_at_full_throttle
         validation_data['power_kW_valid'] = (validation_data['torque_Nm_valid'] & validation_data['speed_rpm_valid'])
+
+        pd.DataFrame(validation_data).to_csv('validation_data_%.1f.csv' % time_shift)
 
         for stp in ['speed_rpm', 'torque_Nm', 'power_kW']:
             # print(stp)
