@@ -1414,20 +1414,26 @@ def validate_data():
     for shift in range(0, 11):
         time_shift = shift * SamplePeriod_s
 
-        start_index = phdp_globals.test_data['ContinuousData'].loc[
-                      phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1, :].index[-1] + shift
-        max_index = phdp_globals.test_data['ContinuousData'].index[-1]
-        end_index = min(max_index, phdp_globals.test_data['ContinuousData'].loc[
-                    phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1, :].index[0] + shift)
-
         validation_data = dict()
 
+        start_index = phdp_globals.test_data['ContinuousData'].loc[
+                      phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1, :].index[-1]
+        max_index = phdp_globals.test_data['ContinuousData'].index[-1]
+        end_index = min(max_index, phdp_globals.test_data['ContinuousData'].loc[
+                    phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1, :].index[0])
+
+        # select throttle data, but don't shift it:
         validation_data['measured_throttle_pct'] = phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'
                                 ].loc[start_index:end_index:samples_per_second].values
         if len(validation_data['measured_throttle_pct']) < len(reference['speed_rpm']):
             # append last available data point if test data is cut short
             validation_data['measured_throttle_pct'] = np.append(validation_data['measured_throttle_pct'],
                       phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'].iloc[-1])
+
+        # allow speed and torque shift:
+        start_index += shift
+        max_index = phdp_globals.test_data['ContinuousData'].index[-1]
+        end_index = min(max_index, end_index + shift)
 
         validation_data['reference_speed_rpm'] = reference['speed_rpm']
 
