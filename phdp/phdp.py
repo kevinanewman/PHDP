@@ -1421,16 +1421,11 @@ def validate_data(test_name, output_prefix, do_plots=False):
                               [val for pair in zip(cycle_definition['TorqueDemand_Nm'],
                                                    torque_ramp_targets) for val in pair])
 
-        reference['speed_rpm'] = np.interp(time_index, cycledef_time_s, cycledef_speed_rpm)
-        reference['torque_Nm'] = np.interp(time_index, cycledef_time_s, cycledef_torque_Nm)
+        reference['speed_rpm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_speed_rpm))
+        reference['torque_Nm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_torque_Nm))
     else:
         reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']
         reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']
-
-    df = pd.DataFrame()
-    df['speed_rpm'] = reference['speed_rpm']
-    df['torque_Nm'] = reference['torque_Nm']
-    df.to_csv('RMC_cycle.csv')
 
     reference['power_kW'] = reference['speed_rpm'] * reference['torque_Nm'] / 9548.8
 
@@ -1473,11 +1468,20 @@ def validate_data(test_name, output_prefix, do_plots=False):
 
             validation_data = dict()
 
-            start_index = phdp_globals.test_data['ContinuousData'].loc[
-                          phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1, :].index[-1]
+            start_condition = phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1
+            if test_name == 'RMC':
+                start_condition_index = 9
+            else:
+                start_condition_index = -1
+
+            end_condition = phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1
+            end_condition_index = 0
+
+            start_index = (
+                phdp_globals.test_data['ContinuousData'].loc[start_condition, :].index)[start_condition_index]
             max_index = phdp_globals.test_data['ContinuousData'].index[-1]
-            end_index = min(max_index, phdp_globals.test_data['ContinuousData'].loc[
-                        phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1, :].index[0])
+            end_index = (
+                min(max_index, phdp_globals.test_data['ContinuousData'].loc[end_condition, :].index[end_condition_index]))
 
             # select throttle data, but don't shift it:
             validation_data['measured_throttle_pct'] = phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'
@@ -1576,7 +1580,7 @@ def validate_data(test_name, output_prefix, do_plots=False):
             validation_data['power_kW_omittable'] = (
                     validation_data['speed_rpm_omittable'] | validation_data['torque_Nm_omittable'])
 
-            # pd.DataFrame(validation_data).to_csv('validation_data_%.1f-%s.csv' % (time_shift, may_omit_str))
+            pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder_base + output_prefix + '-validation_data_%.1f-%s.csv' % (time_shift, may_omit_str))
 
             pass_fail = dict()
             regression_results['%.1f-%s' % (time_shift, may_omit_str)] = dict()
