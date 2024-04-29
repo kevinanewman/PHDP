@@ -1402,12 +1402,12 @@ def validate_data(test_name, output_prefix, do_plots=False):
     if test_name == 'RMC':
         # generate 1 Hz RMC cycle reference data
         cycle_definition = phdp_globals.test_data['CycleDefinition']
-        time_index = list(range(0, cycle_definition['CycleTime_s'].iloc[-1] + 1))
+        time_index = list(range(1, cycle_definition['CycleTime_s'].iloc[-1] + 1))
 
         speed_ramp_targets = list(cycle_definition['SpeedDemand_rpm'][1:])
         speed_ramp_targets.extend([cycle_definition['SpeedDemand_rpm'].iloc[-1]])
 
-        cycledef_time_s = [0] + sorted(list(cycle_definition['CycleTime_s']) + list(
+        cycledef_time_s = [1] + sorted(list(cycle_definition['CycleTime_s']) + list(
             cycle_definition['CycleTime_s'] + cycle_definition['RampTime_s'].iloc[-1]))
 
         cycledef_speed_rpm = ([cycle_definition['SpeedDemand_rpm'].iloc[0]] +
