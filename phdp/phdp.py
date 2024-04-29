@@ -1749,7 +1749,7 @@ def run_phdp(runtime_options):
                 else:
                     calc_modes = ['dilute', 'dilute-bag']
 
-                if test_name == 'LLC':
+                if test_type == 'modal' or test_name == 'LLC':
                     # no bag data for LLC tests, duration is too long for bagging
                     calc_modes.remove('dilute-bag')
 
