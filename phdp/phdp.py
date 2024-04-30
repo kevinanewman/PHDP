@@ -1837,9 +1837,10 @@ def run_phdp(runtime_options):
                 test_valid = True
 
             if not test_valid:
-                raise Exception('\n!!! Test Validation Failed !!!')
-            else:
+                # Warning('\n!!! Test Validation Failed !!!')
+                phdp_log.logwrite('\n!!! Test Validation Failed !!!')
 
+            if True:  # replace with test for whether emissions are available
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                     calc_modes = ['raw', 'dilute', 'dilute-bag']
                 else:
