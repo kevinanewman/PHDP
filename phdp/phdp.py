@@ -72,9 +72,11 @@ def get_unitized_columns(filename, sheet_name=None, ignore_units=('Text', ''), e
         else:
             units = pd.DataFrame({'units': [''] * columns.shape[1]}).transpose()
     else:
-        columns = pd.read_csv(filename, header=None, nrows=1,  encoding=encoding, encoding_errors='strict')
+        columns = pd.read_csv(filename, header=None, nrows=1,  encoding=encoding,
+                              encoding_errors='strict')
         if units_nrows > 0:
-            units = pd.read_csv(filename, header=None, skiprows=1, nrows=units_nrows, encoding=encoding, encoding_errors='strict')
+            units = pd.read_csv(filename, header=None, skiprows=1, nrows=units_nrows, encoding=encoding,
+                                encoding_errors='strict')
         else:
             units = pd.DataFrame({'units': [''] * columns.shape[1]}).transpose()
 
@@ -122,7 +124,8 @@ def load_data(test_site):
                                 header=1, skiprows=0)
             else:
                 get_unitized_columns(input_file, units_nrows=0, encoding=phdp_globals.options.output_encoding)  # dump tad columns to logfile for reference
-                phdp_globals.test_data[file_name] = pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding)
+                phdp_globals.test_data[file_name] = (
+                    pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding))
 
 
 def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number, min_mode_number):
@@ -330,10 +333,12 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
         if test_type == 'transient':
             # TODO: verify this for transient non-RH-based calculations
             # 1065.645-3:
-            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            time_aligned_data['xH2Odil_mol/mol'] = (time_aligned_data['pH2Odilsat_kPa'] /
+                                                    time_aligned_data['pCellAmbient_Avg_kPa'])
         else:
             # 1065.645-3:
-            time_aligned_data['xH2Odil_mol/mol'] = time_aligned_data['pH2Odilsat_kPa'] / time_aligned_data['pCellAmbient_Avg_kPa']
+            time_aligned_data['xH2Odil_mol/mol'] = (time_aligned_data['pH2Odilsat_kPa'] /
+                                                    time_aligned_data['pCellAmbient_Avg_kPa'])
 
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
@@ -643,7 +648,9 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
     else:
         # CFR 1065.659-1
         xH2OCO2dilmeas = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO2_System' % ems_prefix]['ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO2_System' %
+            ems_prefix]['ResidualH2O_%vol'].item()
+
         time_aligned_data['xCO2exh_%mol'] = time_aligned_data['%sCO2_Avg_%%vol' % ctype] * \
                                             ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCO2dilmeas / 100))
         # CFR 1065.659-1
@@ -667,14 +674,18 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
 
         # CFR 1065.659-1
         xH2OCOdilmeas = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO_System' % ems_prefix]['ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sCO_System' %
+            ems_prefix]['ResidualH2O_%vol'].item()
+
         time_aligned_data['xCOexh_μmol/mol'] = \
             time_aligned_data['%s%sCO_Avg_ppm' % (ctype, COrange)] * \
             ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2OCOdilmeas / 100))
 
         # CFR 1065.659-1
         xH2ONOxdilmeas = phdp_globals.test_data['EmsComponents'].loc[
-            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sNOx_System' % ems_prefix]['ResidualH2O_%vol'].item()
+            phdp_globals.test_data['EmsComponents']['ParameterName'] == '%sNOx_System' %
+            ems_prefix]['ResidualH2O_%vol'].item()
+
         time_aligned_data['xNOexh_μmol/mol'] = \
             time_aligned_data['%sNOX_Avg_ppm' % ctype] * 0.75 * \
             ((1 - time_aligned_data['xH2Oexh_mol/mol']) / (1 - xH2ONOxdilmeas / 100))
@@ -727,7 +738,8 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
         time_aligned_data['mN2O_g%s' % unit_rate] = 0
 
     # CFR 1065.667(C)
-    time_aligned_data['ndil_mol%s' % unit_rate] = time_aligned_data['CVSFlow_mol%s' % unit_rate] - time_aligned_data['nexh_mol%s' % unit_rate]
+    time_aligned_data['ndil_mol%s' % unit_rate] = (
+            time_aligned_data['CVSFlow_mol%s' % unit_rate] - time_aligned_data['nexh_mol%s' % unit_rate])
 
 
 def drift_correct_continuous_data(time_aligned_data, signal_name):
@@ -819,7 +831,8 @@ def drift_correct_bag_data(bag_data, idx):
 
     DriftCheck = phdp_globals.test_data['BagDriftCheck']
     xpost_data = DriftCheck[(DriftCheck['DriftComponent'] == component) &
-                            (DriftCheck['EmissionsCycleNumber_Integer'] == bag_data.loc[idx, 'EmissionsCycleNumber_Integer'])]
+                            (DriftCheck['EmissionsCycleNumber_Integer'] ==
+                             bag_data.loc[idx, 'EmissionsCycleNumber_Integer'])]
 
     xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
     xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
@@ -910,7 +923,8 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
         for background_component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O']:
             background_conc = (
                 BagData.loc[(BagData['RbComponent'] == str.upper(background_component)) &
-                            (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number), 'RbAmbConc_ppm'].item())
+                            (BagData['EmissionsCycleNumber_Integer'] == emissions_cycle_number),
+                'RbAmbConc_ppm'].item())
             summary_results['m%sbkgrnd_g' % background_component] = (
                     summary_results['total_dilute_flow_mol'] *
                     constants['M%s_g/mol' % background_component] *
@@ -930,7 +944,8 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
             (summary_results['total_dilute_flow_mol'] * constants['MNMHC_g/mol'] *
              (THC_background_conc - CH4_background_conc * DiluteRFCH4_Fraction) / 10 ** 6)
 
-        summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = summary_results['mNMHCbkgrnd_g'] + summary_results['mNOxbkgrnd_g']
+        summary_results['mNMHCbkgrnd_g+mNOxbkgrnd_g'] = (
+                summary_results['mNMHCbkgrnd_g'] + summary_results['mNOxbkgrnd_g'])
 
         # calculate net mass grams
         for component in ['CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC']:
@@ -1303,53 +1318,88 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
 
         set_value_at(report_df, 'Mode', mode_number, col_offset=col_offset)
 
-        set_value_at(report_df, 'Sample CO2', results['dctadsummary'][i]['mCO2_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample CO', results['dctadsummary'][i]['mCO_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample NOX', results['dctadsummary'][i]['mNOx_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample HC', results['dctadsummary'][i]['mTHC_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample CH4', results['dctadsummary'][i]['mCH4_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample N2O', results['dctadsummary'][i]['mN2O_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample NMHC', results['dctadsummary'][i]['mNMHC_g'], col_offset=col_offset)
-        set_value_at(report_df, 'Sample NMHC+NOx', results['dctadsummary'][i]['mNMHC_g+mNOx_g'], col_offset=col_offset)
+        set_value_at(report_df, 'Sample CO2', results['dctadsummary'][i]['mCO2_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample CO', results['dctadsummary'][i]['mCO_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample NOX', results['dctadsummary'][i]['mNOx_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample HC', results['dctadsummary'][i]['mTHC_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample CH4', results['dctadsummary'][i]['mCH4_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample N2O', results['dctadsummary'][i]['mN2O_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample NMHC', results['dctadsummary'][i]['mNMHC_g'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Sample NMHC+NOx', results['dctadsummary'][i]['mNMHC_g+mNOx_g'],
+                     col_offset=col_offset)
 
         if calc_mode == 'dilute':
-            set_value_at(report_df, 'Background CO2', results['dctadsummary'][i]['mCO2bkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background CO', results['dctadsummary'][i]['mCObkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background NOX', results['dctadsummary'][i]['mNOxbkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background HC', results['dctadsummary'][i]['mTHCbkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background CH4', results['dctadsummary'][i]['mCH4bkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background N2O', results['dctadsummary'][i]['mN2Obkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background NMHC', results['dctadsummary'][i]['mNMHCbkgrnd_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Background NMHC+NOx', results['dctadsummary'][i]['mNMHCbkgrnd_g+mNOxbkgrnd_g'], col_offset=col_offset)
+            set_value_at(report_df, 'Background CO2', results['dctadsummary'][i]['mCO2bkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background CO', results['dctadsummary'][i]['mCObkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background NOX', results['dctadsummary'][i]['mNOxbkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background HC', results['dctadsummary'][i]['mTHCbkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background CH4', results['dctadsummary'][i]['mCH4bkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background N2O', results['dctadsummary'][i]['mN2Obkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background NMHC', results['dctadsummary'][i]['mNMHCbkgrnd_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Background NMHC+NOx', results['dctadsummary'][i]['mNMHCbkgrnd_g+mNOxbkgrnd_g'],
+                         col_offset=col_offset)
 
-            set_value_at(report_df, 'Net CO2', results['dctadsummary'][i]['mCO2net_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net CO', results['dctadsummary'][i]['mCOnet_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net NOX', results['dctadsummary'][i]['mNOxnet_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net HC', results['dctadsummary'][i]['mTHCnet_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net CH4', results['dctadsummary'][i]['mCH4net_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net N2O', results['dctadsummary'][i]['mN2Onet_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net NMHC', results['dctadsummary'][i]['mNMHCnet_g'], col_offset=col_offset)
-            set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'], col_offset=col_offset)
+            set_value_at(report_df, 'Net CO2', results['dctadsummary'][i]['mCO2net_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net CO', results['dctadsummary'][i]['mCOnet_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net NOX', results['dctadsummary'][i]['mNOxnet_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net HC', results['dctadsummary'][i]['mTHCnet_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net CH4', results['dctadsummary'][i]['mCH4net_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net N2O', results['dctadsummary'][i]['mN2Onet_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net NMHC', results['dctadsummary'][i]['mNMHCnet_g'],
+                         col_offset=col_offset)
+            set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'],
+                         col_offset=col_offset)
 
-        set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'], col_offset=col_offset)
-        set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'], col_offset=col_offset)
+        set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'],
+                     col_offset=col_offset)
 
-        set_value_at(report_df, 'mfuelcor_meas', results['1036_calculations'][i]['mfuelcor_meas'], col_offset=col_offset)
-        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'], col_offset=col_offset)
+        set_value_at(report_df, 'mfuelcor_meas', results['1036_calculations'][i]['mfuelcor_meas'],
+                     col_offset=col_offset)
+        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'],
+                     col_offset=col_offset)
 
-        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'], col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'], col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'],
+                     col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'],
+                     col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'],
+                     col_offset=mode_number)
 
-        set_value_at(report_df, 'ϵrC Limit', '±2', col_offset=mode_number)
+        set_value_at(report_df, 'ϵrC Limit', '±2',
+                     col_offset=mode_number)
         set_value_at(report_df, 'ϵaC Limit', '±%.3f' % results['1036_calculations'][i]['eaC_g_limit'].iloc[0],
                      col_offset=mode_number)
         set_value_at(report_df, 'ϵaCrate Limit', '±%.3f' % results['1036_calculations'][i]['eaCrate_g/h_limit'].iloc[0],
                      col_offset=mode_number)
 
-        set_value_at(report_df, 'ϵrC Check', results['1036_calculations'][i]['erC_rel_err_%_check'], col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'], col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'], col_offset=mode_number)
+        set_value_at(report_df, 'ϵrC Check', results['1036_calculations'][i]['erC_rel_err_%_check'],
+                     col_offset=mode_number)
+        set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'],
+                     col_offset=mode_number)
+        set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'],
+                     col_offset=mode_number)
 
     if 'WeightingFactor_Fraction' in phdp_globals.test_data['CycleDefinition']:
         weighted_power = 0
@@ -1517,7 +1567,8 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                     phdp_globals.test_data['ContinuousData'].loc[start_condition, :].index)[start_condition_index]
                 max_index = phdp_globals.test_data['ContinuousData'].index[-1]
                 end_index = (
-                    min(max_index, phdp_globals.test_data['ContinuousData'].loc[end_condition, :].index[end_condition_index]))
+                    min(max_index, phdp_globals.test_data['ContinuousData'].loc[end_condition, :]
+                        .index[end_condition_index]))
 
                 # select throttle data, but don't shift it:
                 validation_data['measured_throttle_pct'] = phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'
@@ -1618,7 +1669,8 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                         idling_at_min_demand | somewhat_above_speed_at_min_demand | somewhat_below_speed_at_max_demand)
 
                 validation_data['torque_Nm_omittable'] = (
-                        motoring_at_min_demand | somewhat_above_torque_at_min_demand | somewhat_below_torque_at_max_demand)
+                        motoring_at_min_demand | somewhat_above_torque_at_min_demand |
+                        somewhat_below_torque_at_max_demand)
 
                 validation_data['power_kW_omittable'] = (
                         validation_data['speed_rpm_omittable'] | validation_data['torque_Nm_omittable'])
@@ -1650,7 +1702,8 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                         ax1.set_xlabel('reference', fontsize=9)
                         ax1.set_ylabel('measured', fontsize=9)
                         title_str = '%.1f-%s-%s-%s-regression_shift.png' % (time_shift, may_omit_str, stp,
-                                                                            {True: 'pass', False: 'FAIL'}[pass_fail[stp]])
+                                                                            {True: 'pass', False: 'FAIL'}
+                                                                            [pass_fail[stp]])
                         ax1.set_title(title_str)
                         ax1.legend()
                         fig.savefig(phdp_globals.options.output_folder_base + output_prefix + '-' + title_str)
@@ -1790,8 +1843,9 @@ def run_phdp(runtime_options):
 
                             phdp_globals.test_data['ContinuousData']['time_s'] = (
                                     phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
-                            mode_pts = ((phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
-                                        (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
+                            mode_pts = (
+                                    (phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
+                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
 
                             continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
 
@@ -1816,7 +1870,8 @@ def run_phdp(runtime_options):
                         drift_corrected_time_aligned_data = time_aligned_data.copy()
 
                         # drift-correct concentrations
-                        for signal_name in [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
+                        for signal_name in \
+                                [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
                             drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
 
                         # drift-correct bag values
@@ -1845,7 +1900,8 @@ def run_phdp(runtime_options):
 
                         if test_type == 'transient':
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
-                            drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+                            drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = (
+                                emissions_cycle_number)
                             calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
                         else:
                             time_aligned_data_summary['ModeNumber_Integer'] = mode_number
