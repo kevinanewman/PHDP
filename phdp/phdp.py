@@ -13,6 +13,7 @@ import sys, os
 import numpy as np
 import pandas as pd
 import scipy
+import math
 
 import matplotlib
 # matplotlib.use('TkAgg')
@@ -1497,6 +1498,10 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
 
     cycle_valid = [False] * len(emissions_cycles)
 
+    best_validation = {'lowest_fail_count': [math.inf] * len(emissions_cycles),
+                       'description': [''] * len(emissions_cycles),
+                       'validation_data': [None] * len(emissions_cycles)}
+
     for ecn in emissions_cycles:
 
         if test_name == 'RMC':
@@ -1710,10 +1715,6 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                 validation_data['power_kW_omittable'] = (
                         validation_data['speed_rpm_omittable'] | validation_data['torque_Nm_omittable'])
 
-                pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder_base + output_prefix +
-                                                     '-validation_data_cycle_%d-%.1f-%s.csv' %
-                                                     (ecn, time_shift, may_omit_str), index=False)
-
                 pass_fail = dict()
                 regression_results['%d-%.1f-%s' % (ecn, time_shift, may_omit_str)] = dict()
                 fail_count = 0
@@ -1765,9 +1766,20 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                 if all([pass_fail[k] is True for k in pass_fail]):
                     print('$$$ Cycle %d %.1f %s time_shift PASS $$$\n' % (ecn, time_shift, may_omit_str))
 
+                if fail_count < best_validation['lowest_fail_count'][ecn-1]:
+                    best_validation['lowest_fail_count'][ecn-1] = fail_count
+                    best_validation['description'][ecn-1] = '%d-%.1f-%s' % (ecn, time_shift, may_omit_str)
+                    best_validation['validation_data'][ecn-1] = validation_data
+
         df = pd.DataFrame(regression_results).transpose()
         df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
                   '-cycle-%d-regression_shift.csv' % ecn, columns=sorted(df.columns))
+
+    for idx, validation_data in enumerate(best_validation['validation_data']):
+        if validation_data is not None:
+            pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder_base + output_prefix +
+                                                 '-validation_data_cycle_%s.csv' %
+                                                 best_validation['description'][idx], index=False)
 
     print('CYCLE VALID = %s' % all(cycle_valid))
 
