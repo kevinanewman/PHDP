@@ -1532,6 +1532,13 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                 max_index = phdp_globals.test_data['ContinuousData'].index[-1]
                 end_index = min(max_index, end_index + shift)
 
+                validation_data['mode_number'] = phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'
+                                     ].loc[start_index:end_index:sample_index_stepsize].values
+                if len(validation_data['mode_number']) < len(reference['speed_rpm']):
+                    # append last available data point if test data is cut short
+                    validation_data['mode_number'] = np.append(validation_data['mode_number'],
+                              phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'].iloc[-1])
+
                 validation_data['reference_speed_rpm'] = reference['speed_rpm']
 
                 validation_data['measured_speed_rpm'] = phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'
@@ -1618,7 +1625,7 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
 
                 pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder_base + output_prefix +
                                                      '-validation_data_cycle_%d-%.1f-%s.csv' %
-                                                     (ecn, time_shift, may_omit_str))
+                                                     (ecn, time_shift, may_omit_str), index=False)
 
                 pass_fail = dict()
                 regression_results['%d-%.1f-%s' % (ecn, time_shift, may_omit_str)] = dict()
@@ -1736,7 +1743,8 @@ def run_phdp(runtime_options):
                 emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
 
             if test_type == 'transient':
-                test_valid = validate_data(test_name, horiba_filename.rsplit('.', 1)[0], emissions_cycles, do_plots=False)
+                test_valid = validate_data(test_name, horiba_filename.rsplit('.', 1)[0], emissions_cycles,
+                                           do_plots=False)
             else:  # for now:
                 test_valid = True
 
