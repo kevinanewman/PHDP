@@ -109,7 +109,7 @@ def load_data(test_site):
     required_file_names = ('BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
                            'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
                            'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
-                           'drift_corrected_BagData')
+                           'drift_corrected_BagData', 'CVSDLSFlows')
 
     os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
     input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
@@ -1992,6 +1992,29 @@ def run_phdp(runtime_options):
                     pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
                         phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
+
+                    # PM measurements:
+                    pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
+                    pm_sample_start_index = \
+                        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
+                    pm_sample_end_index = \
+                        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
+                    pm_sample_start_time = (
+                        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
+                    pm_sample_end_time = (
+                        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
+
+                    cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
+                    cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
+                    cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
+                    cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
+
+                    cvs_mass_kg = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
+                                  cvs_sample_start_index:cvs_sample_end_index].sum() * constants['SamplePeriod_s']
+                    transfer_mass_kg = (phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
+                                       cvs_sample_start_index:cvs_sample_end_index].sum() *
+                                        constants['SamplePeriod_s'] / 1000)
+                    dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
                     if test_type == 'transient':
                         generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
