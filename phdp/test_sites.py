@@ -47,6 +47,25 @@ def get_ems_sample_delay(parameter_name, optional=False):
         return None
 
 
+def get_optional_continuous_signal(parameter_name, default_value, sample_delay):
+    """
+    Get sample delay optional data
+
+    Args:
+        parameter_name (str): signal name, e.g. 'AirFlowDelay_s'
+        default_value (numeric): the default value for the optional signal if not present
+        sample_delay (numeric): signal delay
+
+    Returns:
+        sample delay or ``None`` if signal is not available
+
+    """
+    if parameter_name not in phdp_globals.test_data['ContinuousData']:
+        phdp_globals.test_data['ContinuousData'][parameter_name] = default_value
+
+    return sample_delay
+
+
 def init_site_info(test_site):
     """
     Init ``site_info`` for the given test site
@@ -72,7 +91,8 @@ def init_site_info(test_site):
 
                 'qmIntakeAir_Avg_kg/h': get_test_parameters_sample_delay('AirFlowDelay_s'),
                 'qmFuel_Avg_g/h': get_test_parameters_sample_delay('FuelFlowDelay_s'),
-                'DEFMassFlowRate_Avg_g/h': 0,
+                'DEFMassFlowRate_Avg_g/h': get_optional_continuous_signal('DEFMassFlowRate_Avg_g/h',
+                                                                          default_value=0, sample_delay=0),
                 'tIntakeAir_Avg_°C': 0,
                 'IntakeAirPress_Avg_kPa': 0,
                 'tCellDewPt_Avg_°C': 0,

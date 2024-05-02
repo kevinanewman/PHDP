@@ -345,9 +345,6 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
     from constants import constants, update_constants
     update_constants()  # update constants that rely on test fuel properties, etc
 
-    if 'DEFMassFlowRate_Avg_g/h' not in time_aligned_data:
-        time_aligned_data['DEFMassFlowRate_Avg_g/h'] = 0
-
     if unit_rate == '/s':
         greek_units = 'g/h'
     else:
