@@ -1160,7 +1160,7 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
 
 
 def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
-                              vehicle_test):
+                              vehicle_test, pm_mass_mg):
     """
     Generate a transient test report.
 
@@ -1173,6 +1173,7 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         test_num (int): the number assigned to the test, e.g. '00139'
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
+        pm_mass_mg (float): particulate matter mass (mg)
 
     """
     for i in range(0, len(results['tadsummary'])):
@@ -1221,11 +1222,13 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
                                         np.maximum(original_net_mass, sys.float_info.epsilon) * 100)
             set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
 
-        # TODO: PM calculations
-        set_value_at(report_df, 'Total PM Mass', None)
-        set_value_at(report_df, 'BSPM', None)
+        cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
 
-        set_value_at(report_df, 'Cycle Work', results['tadsummary'][i]['cycle_work_kWh'])
+        # TODO: PM calculations
+        set_value_at(report_df, 'Total PM Mass', pm_mass_mg)
+        set_value_at(report_df, 'BSPM', pm_mass_mg / 1000 / cycle_work_kWh)
+
+        set_value_at(report_df, 'Cycle Work', cycle_work_kWh)
         set_value_at(report_df, 'Total Dilution Flow', results['tadsummary'][i]['total_dilute_flow_mol'])
 
         original_brake_specific_emissions = results['tadsummary'][i].iloc[0, 33:41].values
@@ -1851,6 +1854,9 @@ def run_phdp(runtime_options):
 
             emissions_available = phdp_globals.test_data['BagData']['RbSpanValue_ppm'].max() > 0
 
+            pre_test_pm_measurement_mg = None
+            post_test_pm_measurement_mg = None
+
             if emissions_available:  # replace with test for whether emissions are available
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                     calc_modes = ['raw', 'dilute', 'dilute-bag']
@@ -2017,8 +2023,33 @@ def run_phdp(runtime_options):
                     dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
                     if test_type == 'transient':
+                        if pre_test_pm_measurement_mg is None:
+                            valid_value = False
+                            while not valid_value:
+                                try:
+                                    pre_test_pm_measurement_mg = float(input('Enter pre-test PM test filter mass (mg)'))
+                                    verify = input('Verify value %f (Y/n)') or 'Y'
+                                    if verify.strip().lower() == 'y':
+                                        valid_value = True
+                                except:
+                                    print('Invalid value entered, input must be numeric')
+
+                        if post_test_pm_measurement_mg is None:
+                            valid_value = False
+                            while not valid_value:
+                                try:
+                                    post_test_pm_measurement_mg = float(input('Enter post-test PM test filter mass (mg)'))
+                                    verify = input('Verify value %f (Y/n)') or 'Y'
+                                    if verify.strip().lower() == 'y':
+                                        valid_value = True
+                                except:
+                                    print('Invalid value entered, input must be numeric')
+
+                        pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
+                        pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
+
                         generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                                  test_site, vehicle_test)
+                                                  test_site, vehicle_test, pm_mass_mg)
                     else:
                         generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
                                                   test_site)
