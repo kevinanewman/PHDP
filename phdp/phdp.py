@@ -1159,6 +1159,38 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
     return calculations_1036
 
 
+def get_pm_measurement(prompt, pm_measurement_mg):
+    """
+    This function prompts the user to enter a PM (particulate matter) measurement in mg.
+
+    The input is validated to ensure it's a numeric value and must be confirmed by the user.
+
+    If pm_measurement_mg is None or an invalid number is entered, the function will ask for a new input until
+    a valid one is provided.
+
+    Args:
+        prompt (str): A string message to display to the user requesting the PM measurement.
+        pm_measurement_mg (str): The initial input by the user for the PM measurement. Default is None.
+
+    Returns:
+        float: The validated PM measurement in mg.
+
+    """
+    if pm_measurement_mg is None:
+        valid_value = False
+        while not valid_value:
+            try:
+                pm_measurement_mg = (
+                    float(input(prompt)))
+                verify = input('Verify value %f (Y/n)' % pm_measurement_mg) or 'Y'
+                if verify.strip().lower() == 'y':
+                    valid_value = True
+            except:
+                print('Invalid value entered, input must be numeric')
+
+    return pm_measurement_mg
+
+
 def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
                               vehicle_test, pm_mass_mg):
     """
@@ -1225,8 +1257,8 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
 
         # TODO: PM calculations
-        set_value_at(report_df, 'Total PM Mass', pm_mass_mg)
-        set_value_at(report_df, 'BSPM', pm_mass_mg / 1000 / cycle_work_kWh)
+        set_value_at(report_df, 'Total PM Mass', [pm_mass_mg])
+        set_value_at(report_df, 'BSPM', [pm_mass_mg / 1000 / cycle_work_kWh.item()])
 
         set_value_at(report_df, 'Cycle Work', cycle_work_kWh)
         set_value_at(report_df, 'Total Dilution Flow', results['tadsummary'][i]['total_dilute_flow_mol'])
@@ -2023,27 +2055,11 @@ def run_phdp(runtime_options):
                     dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
                     if test_type == 'transient':
-                        if pre_test_pm_measurement_mg is None:
-                            valid_value = False
-                            while not valid_value:
-                                try:
-                                    pre_test_pm_measurement_mg = float(input('Enter pre-test PM test filter mass (mg)'))
-                                    verify = input('Verify value %f (Y/n)') or 'Y'
-                                    if verify.strip().lower() == 'y':
-                                        valid_value = True
-                                except:
-                                    print('Invalid value entered, input must be numeric')
+                        pre_test_pm_measurement_mg = (
+                            get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
 
-                        if post_test_pm_measurement_mg is None:
-                            valid_value = False
-                            while not valid_value:
-                                try:
-                                    post_test_pm_measurement_mg = float(input('Enter post-test PM test filter mass (mg)'))
-                                    verify = input('Verify value %f (Y/n)') or 'Y'
-                                    if verify.strip().lower() == 'y':
-                                        valid_value = True
-                                except:
-                                    print('Invalid value entered, input must be numeric')
+                        post_test_pm_measurement_mg = (
+                            get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
 
                         pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
                         pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
