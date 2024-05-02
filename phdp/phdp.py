@@ -1182,7 +1182,7 @@ def get_pm_measurement(prompt, pm_measurement_mg):
             try:
                 pm_measurement_mg = (
                     float(input(prompt)))
-                verify = input('Verify value %f (Y/n)' % pm_measurement_mg) or 'Y'
+                verify = input('Verify value %.4f (Y/n)' % pm_measurement_mg) or 'Y'
                 if verify.strip().lower() == 'y':
                     valid_value = True
             except:
