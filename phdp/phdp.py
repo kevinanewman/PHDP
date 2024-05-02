@@ -1849,7 +1849,9 @@ def run_phdp(runtime_options):
                 # Warning('\n!!! Test Validation Failed !!!')
                 phdp_log.logwrite('\n!!! Test Validation Failed !!!')
 
-            if True:  # replace with test for whether emissions are available
+            emissions_available = phdp_globals.test_data['BagData']['RbSpanValue_ppm'].max() > 0
+
+            if emissions_available:  # replace with test for whether emissions are available
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                     calc_modes = ['raw', 'dilute', 'dilute-bag']
                 else:
@@ -2001,6 +2003,8 @@ def run_phdp(runtime_options):
                     print('done!')
 
                 return results
+            else:
+                phdp_log.logwrite('No emissions data available, skipping emissions calcs.')
     except:
         phdp_log.logwrite("\n#RUNTIME FAIL\n%s\n" % traceback.format_exc())
         print("### Check PHDP log for error messages ###")
