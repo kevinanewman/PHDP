@@ -26,6 +26,9 @@ from phdp import *
 from constants import constants
 import test_sites
 
+pre_test_pm_measurement_mg = None
+post_test_pm_measurement_mg = None
+
 
 def init_phdp(runtime_options):
     """
@@ -281,6 +284,8 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
             np.maximum(0, time_aligned_data['tqShaft_Avg_Nm'] * time_aligned_data['spDyno_Avg_rev/min'] / 9548.8))
 
         time_aligned_data['BagFillFlow_Avg_m³/s'] = time_aligned_data['BagFillFlow_Avg_l/min'] / 60000
+
+        time_aligned_data['BagFillFlow_Avg_mol/s'] = time_aligned_data['BagFillFlow_Avg_m³/s'] / 0.024055
 
         if test_type == 'transient':
             if 'CVSMolarFlow_Avg_mol/s' not in time_aligned_data:
@@ -1464,6 +1469,32 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
                        header=False)
 
 
+def calc_STEYX(ref, meas, slope, intercept):
+    """
+    This function calculates the standard error of prediction (STEYX) given a reference dataset (ref),
+    measured dataset (meas), a slope and an intercept. The function first calculates predicted values for
+    the measurement based on the slope and intercept. Then, it computes the difference between the actual
+    measurements and the predicted values. This difference is squared, summed up and divided by `(n - 2)`,
+    where `n` is the length of the reference dataset. Finally, the result is square rooted to get the standard
+    error of prediction.
+
+    Arguments:
+        ref (list): A list of reference values.
+        meas (list): A list of corresponding measured values.
+        slope (float): The slope value for the linear regression.
+        intercept (float): The intercept value for the linear regression.
+
+    Returns:
+        std_error (float): The standard error of prediction.
+
+    """
+    n = len(ref)
+    y_pred = slope * ref + intercept
+    STEYX = (((meas - y_pred) ** 2).sum() / (n - 2)) ** 0.5
+
+    return STEYX
+
+
 def calc_stats(ref, meas):
     """
     Performs a linear regression analysis on two input data sets and returns the slope, intercept, correlation
@@ -1479,10 +1510,7 @@ def calc_stats(ref, meas):
     """
     slope, intercept, r_value, _, _ = scipy.stats.linregress(ref, meas)
 
-    n = len(ref)
-    y_pred = slope*ref+intercept
-
-    STEYX = (((meas-y_pred)**2).sum()/(n-2))**0.5
+    STEYX = calc_STEYX(ref, meas, slope, intercept)
 
     return {'slope': slope, 'intercept': intercept, 'R2': r_value**2, 'SEE': STEYX}
 
@@ -1818,6 +1846,88 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
     return all(cycle_valid)
 
 
+def particulate_matter_calculations(test_type):
+    """
+
+    Args:
+        test_type (str): test type, i.e. 'transient' or 'modal'
+
+    Returns:
+
+    """
+    from statistics import linear_regression
+
+    global pre_test_pm_measurement_mg, post_test_pm_measurement_mg
+
+    pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
+    pm_sample_start_index = \
+        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
+    pm_sample_end_index = \
+        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
+    pm_sample_start_time = (
+        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
+    pm_sample_end_time = (
+        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
+    cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
+    cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
+    cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
+    cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
+    cvs_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
+                         cvs_sample_start_index:cvs_sample_end_index]
+    transfer_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
+                              cvs_sample_start_index:cvs_sample_end_index] / 1000
+    cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['SamplePeriod_s']
+    transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['SamplePeriod_s']
+    dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
+
+    if test_type == 'transient':
+        pre_test_pm_measurement_mg = (
+            get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
+
+        post_test_pm_measurement_mg = (
+            get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
+
+        pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
+        pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
+    else:  # TODO: handling for modal tests with multiple samples ...
+        pass
+
+    # proportionality check
+    skip_secs = 5  # skip first five seconds to allow flow measurements to stabilize
+    cvs_mass_flow_kgps_skip = \
+        cvs_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
+
+    transfer_mass_flow_kgps_skip = \
+        transfer_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
+
+    samples_per_second = int(1 / constants['SamplePeriod_s'])
+
+    sample_length_1Hz = int(len(cvs_mass_flow_kgps_skip) / samples_per_second) * samples_per_second
+
+    # truncate data to an even multiple of the 1Hz sample period
+    cvs_mass_flow_kgps_skip_trunc = cvs_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
+    transfer_mass_flow_kgps_skip_trunc = transfer_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
+
+    # average the data in 1Hz intervals
+    cvs_mass_flow_kgps_skip_1Hz = cvs_mass_flow_kgps_skip_trunc.values.reshape(
+        int(len(cvs_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+
+    transfer_mass_flow_kgps_skip_1Hz = transfer_mass_flow_kgps_skip_trunc.values.reshape(
+        int(len(transfer_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+
+    # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
+    slope, intercept = linear_regression(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz,
+                                         proportional=True)
+
+    # calculate particulate matter sampling proportionality
+    SEE = calc_STEYX(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz, slope, intercept)
+
+    transfer_mass_flow_kgps_skip_1Hz_mean = transfer_mass_flow_kgps_skip_1Hz.mean()
+    pm_sampling_proportionality_pct = SEE / transfer_mass_flow_kgps_skip_1Hz_mean * 100
+
+    return pm_mass_mg  # , pm_sampling_proportionality_pct
+
+
 def run_phdp(runtime_options):
     """
     Run Post-Horiba Data Processing and generate output summary and report files
@@ -1885,9 +1995,6 @@ def run_phdp(runtime_options):
                 phdp_log.logwrite('\n!!! Test Validation Failed !!!')
 
             emissions_available = phdp_globals.test_data['BagData']['RbSpanValue_ppm'].max() > 0
-
-            pre_test_pm_measurement_mg = None
-            post_test_pm_measurement_mg = None
 
             if emissions_available:  # replace with test for whether emissions are available
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
@@ -2032,38 +2139,9 @@ def run_phdp(runtime_options):
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     # PM measurements:
-                    pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
-                    pm_sample_start_index = \
-                        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
-                    pm_sample_end_index = \
-                        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
-                    pm_sample_start_time = (
-                        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
-                    pm_sample_end_time = (
-                        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
-
-                    cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
-                    cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
-                    cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
-                    cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
-
-                    cvs_mass_kg = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
-                                  cvs_sample_start_index:cvs_sample_end_index].sum() * constants['SamplePeriod_s']
-                    transfer_mass_kg = (phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
-                                       cvs_sample_start_index:cvs_sample_end_index].sum() *
-                                        constants['SamplePeriod_s'] / 1000)
-                    dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
+                    pm_mass_mg = particulate_matter_calculations(test_type)
 
                     if test_type == 'transient':
-                        pre_test_pm_measurement_mg = (
-                            get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
-
-                        post_test_pm_measurement_mg = (
-                            get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
-
-                        pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
-                        pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
-
                         generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
                                                   test_site, vehicle_test, pm_mass_mg)
                     else:
