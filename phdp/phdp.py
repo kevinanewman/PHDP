@@ -109,12 +109,14 @@ def load_data(test_site):
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
 
     """
-    required_file_names = ('BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
+    required_file_names = ['BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
                            'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
                            'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
-                           'drift_corrected_BagData')
+                           'drift_corrected_BagData']
 
     optional_file_names = ['CVSDLSFlows']
+
+    required_file_names.extend(optional_file_names)  # add optional files
 
     os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
     input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
@@ -2167,8 +2169,9 @@ def run_phdp(runtime_options):
                         if test_type == 'transient':
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
 
-                            proportionality_check(time_aligned_data['CVSFlow_mol/s'],
-                                                  time_aligned_data['BagFillFlow_Avg_mol/s'])
+                            if calc_mode != 'dilute-bag':
+                                proportionality_check(time_aligned_data['CVSFlow_mol/s'],
+                                                      time_aligned_data['BagFillFlow_Avg_mol/s'])
 
                             drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = (
                                 emissions_cycle_number)

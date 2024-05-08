@@ -115,6 +115,15 @@ def init_site_info(test_site, test_type):
                     'conCH4cutter_Avg_ppmC': get_ems_sample_delay('DilCH4_System'),
                     'BagFillFlow_Avg_l/min': 0,
                     'EngDynoMode': 0,
+                    'ExhaustBackPressure_kPa': 0,
+                    'pFuelReturn_kPa': 0,
+                    'pFuelSupply_kPa': 0,
+                    'tCoolantCA_°C': 0,
+                    'tCoolantIn_°C': 0,
+                    'tOilSump_°C': 0,
+                    'CVSDilExhTemp_Avg_°C': 0,
+                    'pTailpipe_Avg_kPa': 0,
+                    'tFuel_Avg_°C': 0,
                 }
 
             if test_site == 'HD02':
