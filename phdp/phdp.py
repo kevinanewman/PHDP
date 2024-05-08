@@ -1887,6 +1887,53 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     return all(cycle_valid)
 
 
+def proportionality_check(ref, meas, skip_secs=5):
+    """
+    Calculate proportionality check percentage, the ratio of standard error to the mean
+
+    Args:
+        ref (list): A list of reference values.
+        meas (list): A list of corresponding measured values.
+        skip_secs (int): The number of seconds to skip at the start of the data, if any
+
+    Returns:
+        Proportionality percent
+
+    """
+    from statistics import linear_regression
+
+    ref_skip = \
+        ref.iloc[int(skip_secs / constants['SamplePeriod_s']):]
+    meas_skip = \
+        meas.iloc[int(skip_secs / constants['SamplePeriod_s']):]
+
+    samples_per_second = int(1 / constants['SamplePeriod_s'])
+    sample_length_1Hz = int(len(ref_skip) / samples_per_second) * samples_per_second
+
+    # truncate data to an even multiple of the 1Hz sample period
+    ref_skip_trunc = ref_skip.iloc[0: sample_length_1Hz]
+    meas_skip_trunc = meas_skip.iloc[0: sample_length_1Hz]
+
+    # average the data in 1Hz intervals
+    ref_skip_1Hz = ref_skip_trunc.values.reshape(
+        int(len(ref_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+
+    meas_skip_1Hz = meas_skip_trunc.values.reshape(
+        int(len(meas_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+
+    # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
+    slope, intercept = linear_regression(ref_skip_1Hz, meas_skip_1Hz,
+                                         proportional=True)
+    # calculate particulate matter sampling proportionality
+    SEE = calc_STEYX(ref_skip_1Hz, meas_skip_1Hz, slope, intercept)
+
+    meas_skip_1Hz_mean = meas_skip_1Hz.mean()
+
+    proportionality_pct = SEE / meas_skip_1Hz_mean * 100
+
+    return slope, proportionality_pct
+
+
 def particulate_matter_calculations(test_type):
     """
 
@@ -1896,8 +1943,6 @@ def particulate_matter_calculations(test_type):
     Returns:
 
     """
-    from statistics import linear_regression
-
     global pre_test_pm_measurement_mg, post_test_pm_measurement_mg
 
     pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
@@ -1936,37 +1981,7 @@ def particulate_matter_calculations(test_type):
             pass
 
         # proportionality check
-        skip_secs = 5  # skip first five seconds to allow flow measurements to stabilize
-        cvs_mass_flow_kgps_skip = \
-            cvs_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
-
-        transfer_mass_flow_kgps_skip = \
-            transfer_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
-
-        samples_per_second = int(1 / constants['SamplePeriod_s'])
-
-        sample_length_1Hz = int(len(cvs_mass_flow_kgps_skip) / samples_per_second) * samples_per_second
-
-        # truncate data to an even multiple of the 1Hz sample period
-        cvs_mass_flow_kgps_skip_trunc = cvs_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
-        transfer_mass_flow_kgps_skip_trunc = transfer_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
-
-        # average the data in 1Hz intervals
-        cvs_mass_flow_kgps_skip_1Hz = cvs_mass_flow_kgps_skip_trunc.values.reshape(
-            int(len(cvs_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
-
-        transfer_mass_flow_kgps_skip_1Hz = transfer_mass_flow_kgps_skip_trunc.values.reshape(
-            int(len(transfer_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
-
-        # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
-        slope, intercept = linear_regression(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz,
-                                             proportional=True)
-
-        # calculate particulate matter sampling proportionality
-        SEE = calc_STEYX(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz, slope, intercept)
-
-        transfer_mass_flow_kgps_skip_1Hz_mean = transfer_mass_flow_kgps_skip_1Hz.mean()
-        pm_sampling_proportionality_pct = SEE / transfer_mass_flow_kgps_skip_1Hz_mean * 100
+        proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps)
     else:
         pm_mass_mg = None
 
@@ -2151,12 +2166,19 @@ def run_phdp(runtime_options):
 
                         if test_type == 'transient':
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
+
+                            proportionality_check(time_aligned_data['CVSFlow_mol/s'],
+                                                  time_aligned_data['BagFillFlow_Avg_mol/s'])
+
                             drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = (
                                 emissions_cycle_number)
+
                             calculations_1036['EmissionsCycleNumber_Integer'] = emissions_cycle_number
                         else:
                             time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+
                             drift_corrected_time_aligned_data_summary['ModeNumber_Integer'] = mode_number
+
                             calculations_1036['ModeNumber_Integer'] = mode_number
 
                         results['tad'].append(time_aligned_data)
