@@ -1897,7 +1897,7 @@ def proportionality_check(ref, meas, skip_secs=5):
         skip_secs (int): The number of seconds to skip at the start of the data, if any
 
     Returns:
-        Proportionality percent
+        Proportionality percent, the ratio of standard error to the mean
 
     """
     from statistics import linear_regression
@@ -1921,10 +1921,10 @@ def proportionality_check(ref, meas, skip_secs=5):
     meas_skip_1Hz = meas_skip_trunc.values.reshape(
         int(len(meas_skip_trunc) / samples_per_second), samples_per_second).mean(1)
 
-    # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
+    # calculate a linear fit of the measured data, with a zero intercept
     slope, intercept = linear_regression(ref_skip_1Hz, meas_skip_1Hz,
                                          proportional=True)
-    # calculate particulate matter sampling proportionality
+    # calculate proportionality percent
     SEE = calc_STEYX(ref_skip_1Hz, meas_skip_1Hz, slope, intercept)
 
     meas_skip_1Hz_mean = meas_skip_1Hz.mean()
