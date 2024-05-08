@@ -112,7 +112,9 @@ def load_data(test_site):
     required_file_names = ('BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
                            'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
                            'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
-                           'drift_corrected_BagData', 'CVSDLSFlows')
+                           'drift_corrected_BagData')
+
+    optional_file_names = ['CVSDLSFlows']
 
     os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
     input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
@@ -132,6 +134,10 @@ def load_data(test_site):
                 phdp_globals.test_data[file_name] = (
                     pd.read_csv(input_file, encoding=phdp_globals.options.output_encoding))
 
+    for optional_file in optional_file_names:
+        if optional_file not in phdp_globals.test_data:
+            phdp_globals.test_data[optional_file] = None
+
 
 def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number, min_mode_number):
     """
@@ -150,7 +156,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     """
     from test_sites import site_info
 
-    test_sites.init_site_info(test_site)
+    test_sites.init_site_info(test_site, 'transient')
 
     SamplePeriod_s = phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item()
 
@@ -1262,8 +1268,12 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
 
         # TODO: PM calculations
-        set_value_at(report_df, 'Total PM Mass', [pm_mass_mg])
-        set_value_at(report_df, 'BSPM', [pm_mass_mg / 1000 / cycle_work_kWh.item()])
+        if pm_mass_mg is not None:
+            set_value_at(report_df, 'Total PM Mass', [pm_mass_mg])
+            set_value_at(report_df, 'BSPM', [pm_mass_mg / 1000 / cycle_work_kWh.item()])
+        else:
+            set_value_at(report_df, 'Total PM Mass', 'N/A')
+            set_value_at(report_df, 'BSPM', 'N/A')
 
         set_value_at(report_df, 'Cycle Work', cycle_work_kWh)
         set_value_at(report_df, 'Total Dilution Flow', results['tadsummary'][i]['total_dilute_flow_mol'])
@@ -1534,14 +1544,16 @@ def pass_fail_range(value, allowed_range):
         return 'FAIL'
 
 
-def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
+def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=None, do_plots=False):
     """
     Validate measured data against reference cycle data
 
     Args:
         test_name (str): test type name, e.g. 'FTP', 'RMC', etc
+        test_type (str): test type, i.e. 'transient' or 'modal'
         output_prefix (str): the prefix to be added to the filename of the generated report file.
         emissions_cycles (list): list of emission cycle numbers
+        modes (list): list of emissions modes for modal tests
         do_plots (bool): generate regression plots if ``True``
 
     Returns:
@@ -1562,41 +1574,58 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
                        'description': [''] * len(emissions_cycles),
                        'validation_data': [None] * len(emissions_cycles)}
 
+    continuous_data = phdp_globals.test_data['ContinuousData'].copy()
+
     for ecn in emissions_cycles:
+        if test_type == 'transient':
+            if test_name == 'RMC':
+                # generate 1 Hz RMC cycle reference data
+                cycle_definition = phdp_globals.test_data['CycleDefinition']
+                time_index = list(range(1, cycle_definition['CycleTime_s'].iloc[-1] + 1))
 
-        if test_name == 'RMC':
-            # generate 1 Hz RMC cycle reference data
-            cycle_definition = phdp_globals.test_data['CycleDefinition']
-            time_index = list(range(1, cycle_definition['CycleTime_s'].iloc[-1] + 1))
+                speed_ramp_targets = list(cycle_definition['SpeedDemand_rpm'][1:])
+                speed_ramp_targets.extend([cycle_definition['SpeedDemand_rpm'].iloc[-1]])
 
-            speed_ramp_targets = list(cycle_definition['SpeedDemand_rpm'][1:])
-            speed_ramp_targets.extend([cycle_definition['SpeedDemand_rpm'].iloc[-1]])
+                cycledef_time_s = [1] + sorted(list(cycle_definition['CycleTime_s']) + list(
+                    cycle_definition['CycleTime_s'] + cycle_definition['RampTime_s'].iloc[-1]))
 
-            cycledef_time_s = [1] + sorted(list(cycle_definition['CycleTime_s']) + list(
-                cycle_definition['CycleTime_s'] + cycle_definition['RampTime_s'].iloc[-1]))
+                cycledef_speed_rpm = ([cycle_definition['SpeedDemand_rpm'].iloc[0]] +
+                                      [val for pair in zip(cycle_definition['SpeedDemand_rpm'],
+                                                           speed_ramp_targets) for val in pair])
 
-            cycledef_speed_rpm = ([cycle_definition['SpeedDemand_rpm'].iloc[0]] +
-                                  [val for pair in zip(cycle_definition['SpeedDemand_rpm'],
-                                                       speed_ramp_targets) for val in pair])
+                torque_ramp_targets = list(cycle_definition['TorqueDemand_Nm'][1:])
+                torque_ramp_targets.extend([cycle_definition['TorqueDemand_Nm'].iloc[-1]])
 
-            torque_ramp_targets = list(cycle_definition['TorqueDemand_Nm'][1:])
-            torque_ramp_targets.extend([cycle_definition['TorqueDemand_Nm'].iloc[-1]])
+                cycledef_torque_Nm = ([cycle_definition['TorqueDemand_Nm'].iloc[0]] +
+                                      [val for pair in zip(cycle_definition['TorqueDemand_Nm'],
+                                                           torque_ramp_targets) for val in pair])
 
-            cycledef_torque_Nm = ([cycle_definition['TorqueDemand_Nm'].iloc[0]] +
-                                  [val for pair in zip(cycle_definition['TorqueDemand_Nm'],
-                                                       torque_ramp_targets) for val in pair])
+                reference['speed_rpm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_speed_rpm))
+                reference['torque_Nm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_torque_Nm))
+            elif test_name == 'GHGTRNS':
+                reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']. \
+                    loc[phdp_globals.test_data['CycleDefinition']['EmissionsCycleNumber_Integer'] == ecn]
 
-            reference['speed_rpm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_speed_rpm))
-            reference['torque_Nm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_torque_Nm))
-        elif test_name == 'GHGTRNS':
-            reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']. \
-                loc[phdp_globals.test_data['CycleDefinition']['EmissionsCycleNumber_Integer'] == ecn]
-
-            reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']. \
-                loc[phdp_globals.test_data['CycleDefinition']['EmissionsCycleNumber_Integer'] == ecn]
+                reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']. \
+                    loc[phdp_globals.test_data['CycleDefinition']['EmissionsCycleNumber_Integer'] == ecn]
+            else:
+                reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']
+                reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']
         else:
-            reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']
-            reference['torque_Nm'] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm']
+            in_mode_pts = continuous_data['InModeLog_Logical'] == True
+
+            reference['speed_rpm'] = pd.Series([np.nan] * len(continuous_data))
+            reference['torque_Nm'] = pd.Series([np.nan] * len(continuous_data))
+
+            for mode in modes:
+                mode_pts = in_mode_pts & (continuous_data['ModeNumber_Integer'] == mode)
+                reference['speed_rpm'].loc[mode_pts] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm'].iloc[mode-1]
+                reference['torque_Nm'].loc[mode_pts] = phdp_globals.test_data['CycleDefinition']['TorqueDemand_Nm'].iloc[mode-1]
+
+            reference['speed_rpm'] = reference['speed_rpm'].loc[in_mode_pts]
+            reference['torque_Nm'] = reference['torque_Nm'].loc[in_mode_pts]
+
+            continuous_data = continuous_data.loc[in_mode_pts].reset_index()
 
         reference['power_kW'] = reference['speed_rpm'] * reference['torque_Nm'] / 9548.8
 
@@ -1629,7 +1658,12 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
 
         regression_results = dict()
 
-        for shift in range(0, int(1.0/SamplePeriod_s + 1)):
+        if test_type == 'transient':
+            shift_range = range(0, int(1.0/SamplePeriod_s + 1))
+        else:  # no need to shift modal data
+            shift_range = [0]
+
+        for shift in shift_range:
             time_shift = shift * SamplePeriod_s
 
             may_omit_options = list(range(0, 2**5))
@@ -1639,74 +1673,81 @@ def validate_data(test_name, output_prefix, emissions_cycles, do_plots=False):
 
                 validation_data = dict()
 
-                if test_name == 'GHGTRNS':
-                    start_condition = (phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'] == ecn)
-                else:
-                    start_condition = (phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == 1)
+                if test_type == 'transient':
+                    if test_name == 'GHGTRNS':
+                        start_condition = (continuous_data['EmissionsCycleNumber_Integer'] == ecn)
+                    else:
+                        start_condition = (continuous_data['ModeNumber_Integer'] == 1)
 
-                if test_name == 'RMC':
-                    start_condition_index = 9
-                elif test_name == 'GHGTRNS':
+                    if test_name == 'RMC':
+                        start_condition_index = 9
+                    elif test_name == 'GHGTRNS':
+                        start_condition_index = 0
+                    else:
+                        start_condition_index = -1
+
+                    end_condition = ((continuous_data['ModeNumber_Integer'] == -1) &
+                                     (continuous_data['EmissionsCycleNumber_Integer'] == ecn))
+                    end_condition_index = 0
+                else:
+                    start_condition = [True] * len(continuous_data)
                     start_condition_index = 0
-                else:
-                    start_condition_index = -1
 
-                end_condition = ((phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == -1) &
-                                 (phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'] == ecn))
-                end_condition_index = 0
+                    end_condition = [True] * len(continuous_data)
+                    end_condition_index = -1
 
                 start_index = (
-                    phdp_globals.test_data['ContinuousData'].loc[start_condition, :].index)[start_condition_index]
-                max_index = phdp_globals.test_data['ContinuousData'].index[-1]
+                    continuous_data.loc[start_condition, :].index)[start_condition_index]
+                max_index = continuous_data.index[-1]
                 end_index = (
-                    min(max_index, phdp_globals.test_data['ContinuousData'].loc[end_condition, :]
+                    min(max_index, continuous_data.loc[end_condition, :]
                         .index[end_condition_index]))
 
                 # select throttle data, but don't shift it:
                 validation_data['measured_throttle_pct'] = (
-                    phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'].loc[
+                    continuous_data['pctThrottle_Avg_%'].loc[
                     start_index:end_index:sample_index_stepsize].values)
 
                 if len(validation_data['measured_throttle_pct']) < len(reference['speed_rpm']):
                     # append last available data point if test data is cut short
                     validation_data['measured_throttle_pct'] = np.append(validation_data['measured_throttle_pct'],
-                              phdp_globals.test_data['ContinuousData']['pctThrottle_Avg_%'].iloc[-1])
+                              continuous_data['pctThrottle_Avg_%'].iloc[-1])
 
                 # allow speed and torque shift:
                 start_index += shift
-                max_index = phdp_globals.test_data['ContinuousData'].index[-1]
+                max_index = continuous_data.index[-1]
                 end_index = min(max_index, end_index + shift)
 
                 validation_data['mode_number'] = (
-                    phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'].loc[
+                    continuous_data['ModeNumber_Integer'].loc[
                     start_index:end_index:sample_index_stepsize].values)
 
                 if len(validation_data['mode_number']) < len(reference['speed_rpm']):
                     # append last available data point if test data is cut short
                     validation_data['mode_number'] = np.append(validation_data['mode_number'],
-                              phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'].iloc[-1])
+                              continuous_data['ModeNumber_Integer'].iloc[-1])
 
                 validation_data['reference_speed_rpm'] = reference['speed_rpm']
 
                 validation_data['measured_speed_rpm'] = (
-                    phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'].loc[
+                    continuous_data['spDyno_Avg_rev/min'].loc[
                     start_index:end_index:sample_index_stepsize].values)
 
                 if len(validation_data['measured_speed_rpm']) < len(reference['speed_rpm']):
                     # append last available data point if test data is cut short
                     validation_data['measured_speed_rpm'] = np.append(validation_data['measured_speed_rpm'],
-                              phdp_globals.test_data['ContinuousData']['spDyno_Avg_rev/min'].iloc[-1])
+                              continuous_data['spDyno_Avg_rev/min'].iloc[-1])
 
                 validation_data['reference_torque_Nm'] = reference['torque_Nm']
 
                 validation_data['measured_torque_Nm'] = (
-                    phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'].loc[
+                    continuous_data['tqShaft_Avg_Nm'].loc[
                     start_index:end_index:sample_index_stepsize].values)
 
                 if len(validation_data['measured_torque_Nm']) < len(reference['speed_rpm']):
                     # append last available data point if test data is cut short
                     validation_data['measured_torque_Nm'] = np.append(validation_data['measured_torque_Nm'],
-                              phdp_globals.test_data['ContinuousData']['tqShaft_Avg_Nm'].iloc[-1])
+                              continuous_data['tqShaft_Avg_Nm'].iloc[-1])
 
                 validation_data['reference_power_kW'] = reference['power_kW']
 
@@ -1860,70 +1901,74 @@ def particulate_matter_calculations(test_type):
     global pre_test_pm_measurement_mg, post_test_pm_measurement_mg
 
     pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
-    pm_sample_start_index = \
-        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
-    pm_sample_end_index = \
-        (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
-    pm_sample_start_time = (
-        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
-    pm_sample_end_time = (
-        phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
-    cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
-    cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
-    cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
-    cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
-    cvs_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
-                         cvs_sample_start_index:cvs_sample_end_index]
-    transfer_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
-                              cvs_sample_start_index:cvs_sample_end_index] / 1000
-    cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['SamplePeriod_s']
-    transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['SamplePeriod_s']
-    dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
-    if test_type == 'transient':
-        pre_test_pm_measurement_mg = (
-            get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
+    if any(pm_sample_pts):
+        pm_sample_start_index = \
+            (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
+        pm_sample_end_index = \
+            (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
+        pm_sample_start_time = (
+            phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
+        pm_sample_end_time = (
+            phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
+        cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
+        cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
+        cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
+        cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
+        cvs_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
+                             cvs_sample_start_index:cvs_sample_end_index]
+        transfer_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
+                                  cvs_sample_start_index:cvs_sample_end_index] / 1000
+        cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['SamplePeriod_s']
+        transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['SamplePeriod_s']
+        dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
-        post_test_pm_measurement_mg = (
-            get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
+        if test_type == 'transient':
+            pre_test_pm_measurement_mg = (
+                get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
 
-        pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
-        pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
-    else:  # TODO: handling for modal tests with multiple samples ...
-        pass
+            post_test_pm_measurement_mg = (
+                get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
 
-    # proportionality check
-    skip_secs = 5  # skip first five seconds to allow flow measurements to stabilize
-    cvs_mass_flow_kgps_skip = \
-        cvs_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
+            pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
+            pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
+        else:  # TODO: handling for modal tests with multiple samples ...
+            pass
 
-    transfer_mass_flow_kgps_skip = \
-        transfer_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
+        # proportionality check
+        skip_secs = 5  # skip first five seconds to allow flow measurements to stabilize
+        cvs_mass_flow_kgps_skip = \
+            cvs_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
 
-    samples_per_second = int(1 / constants['SamplePeriod_s'])
+        transfer_mass_flow_kgps_skip = \
+            transfer_mass_flow_kgps.iloc[int(skip_secs / constants['SamplePeriod_s']) - 1:]
 
-    sample_length_1Hz = int(len(cvs_mass_flow_kgps_skip) / samples_per_second) * samples_per_second
+        samples_per_second = int(1 / constants['SamplePeriod_s'])
 
-    # truncate data to an even multiple of the 1Hz sample period
-    cvs_mass_flow_kgps_skip_trunc = cvs_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
-    transfer_mass_flow_kgps_skip_trunc = transfer_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
+        sample_length_1Hz = int(len(cvs_mass_flow_kgps_skip) / samples_per_second) * samples_per_second
 
-    # average the data in 1Hz intervals
-    cvs_mass_flow_kgps_skip_1Hz = cvs_mass_flow_kgps_skip_trunc.values.reshape(
-        int(len(cvs_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+        # truncate data to an even multiple of the 1Hz sample period
+        cvs_mass_flow_kgps_skip_trunc = cvs_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
+        transfer_mass_flow_kgps_skip_trunc = transfer_mass_flow_kgps_skip.iloc[0: sample_length_1Hz]
 
-    transfer_mass_flow_kgps_skip_1Hz = transfer_mass_flow_kgps_skip_trunc.values.reshape(
-        int(len(transfer_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
+        # average the data in 1Hz intervals
+        cvs_mass_flow_kgps_skip_1Hz = cvs_mass_flow_kgps_skip_trunc.values.reshape(
+            int(len(cvs_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
 
-    # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
-    slope, intercept = linear_regression(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz,
-                                         proportional=True)
+        transfer_mass_flow_kgps_skip_1Hz = transfer_mass_flow_kgps_skip_trunc.values.reshape(
+            int(len(transfer_mass_flow_kgps_skip_trunc) / samples_per_second), samples_per_second).mean(1)
 
-    # calculate particulate matter sampling proportionality
-    SEE = calc_STEYX(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz, slope, intercept)
+        # calculate transfer mass flow as a function of cvs mass flow, with a zero intercept
+        slope, intercept = linear_regression(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz,
+                                             proportional=True)
 
-    transfer_mass_flow_kgps_skip_1Hz_mean = transfer_mass_flow_kgps_skip_1Hz.mean()
-    pm_sampling_proportionality_pct = SEE / transfer_mass_flow_kgps_skip_1Hz_mean * 100
+        # calculate particulate matter sampling proportionality
+        SEE = calc_STEYX(cvs_mass_flow_kgps_skip_1Hz, transfer_mass_flow_kgps_skip_1Hz, slope, intercept)
+
+        transfer_mass_flow_kgps_skip_1Hz_mean = transfer_mass_flow_kgps_skip_1Hz.mean()
+        pm_sampling_proportionality_pct = SEE / transfer_mass_flow_kgps_skip_1Hz_mean * 100
+    else:
+        pm_mass_mg = None
 
     return pm_mass_mg  # , pm_sampling_proportionality_pct
 
@@ -1977,18 +2022,20 @@ def run_phdp(runtime_options):
             # load data
             load_data(test_site)
 
-            if test_type == 'transient':
-                emissions_cycles = \
-                    [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
-                     if ecn >= 1]
-            else:
-                emissions_cycles = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
+            emissions_cycles = \
+                [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
+                 if ecn >= 1]
 
-            if test_type == 'transient':
-                test_valid = validate_data(test_name, horiba_filename.rsplit('.', 1)[0], emissions_cycles,
-                                           do_plots=False)
-            else:  # for now:
-                test_valid = True
+            if test_type == 'modal':
+                modes = phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'].values
+            else:
+                modes = None
+
+            test_valid = validate_data(test_name, test_type, horiba_filename.rsplit('.', 1)[0], emissions_cycles,
+                                       modes, do_plots=False)
+
+            if test_type == 'modal':
+                emissions_cycles = modes
 
             if not test_valid:
                 # Warning('\n!!! Test Validation Failed !!!')
@@ -2019,12 +2066,19 @@ def run_phdp(runtime_options):
                             time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
                                                                            emissions_cycle_number, min_mode_number)
                         else:
+                            from test_sites import site_info
+
+                            test_sites.init_site_info(test_site, test_type)
+
                             emissions_cycle_number = 1
                             mode_number = ecn
+
                             time_aligned_data = phdp_globals.test_data['ModalTestData'].loc[
                                 phdp_globals.test_data['ModalTestData']['ModeNumber_Integer'] == mode_number].copy()
+
                             non_numeric_columns = [c for c in time_aligned_data.columns
                                                    if pd.api.types.is_object_dtype(time_aligned_data[c])]
+
                             time_aligned_data = time_aligned_data.drop(non_numeric_columns, axis=1)
                             time_aligned_data['tqShaft_Nm'] = time_aligned_data['tqShaft_Avg_Nm']
                             time_aligned_data['spDyno_rev/min'] = time_aligned_data['spDyno_Avg_rev/min']
@@ -2037,7 +2091,7 @@ def run_phdp(runtime_options):
                                     phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
                             mode_pts = (
                                     (phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
-                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] is True))
+                                    (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
 
                             continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
 
@@ -2045,6 +2099,11 @@ def run_phdp(runtime_options):
                                     continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
 
                             time_aligned_data['elapsed_time_s'] = constants['SamplePeriod_s']
+
+                            for optional_signal in site_info['optional_modal_signals']:
+                                if optional_signal not in time_aligned_data:
+                                    time_aligned_data[optional_signal] = (
+                                        site_info)['optional_modal_signals'][optional_signal]
 
                             time_aligned_data = time_aligned_data.dropna(axis=1).reset_index(drop=True)
 
