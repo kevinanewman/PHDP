@@ -422,14 +422,12 @@ def calc_bagdriftcheck_drift_check(report_df, check_phase, limit_pct, driftline,
                                  col_offset=offset + 2)
 
 
-def generate_driftcheck_report(report_filename, results, test_datetime):
+def generate_driftcheck_report(report_filename):
     """
     Generate a transient test report.
 
     Args:
         report_filename (str): the Excel report filename, a new sheet will be added
-        results (dict): a dictionary containing the results of the emissions calculations.
-        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
 
     """
     report_df = pd.read_csv(path + os.sep + 'drift_check_report_template.csv', encoding='UTF-8', header=None)
