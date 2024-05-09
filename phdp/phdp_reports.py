@@ -5,11 +5,11 @@ PHDP report generators
 
 import os
 path = os.path.dirname(os.path.abspath(__file__))
-#
-# import pandas as pd
-
 
 from phdp import *
+from common.file_io import file_exists
+
+initial_report = True
 
 
 def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
@@ -28,7 +28,12 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
         pm_mass_mg (float): particulate matter mass (mg)
 
+    Returns:
+        Report file name for use by subsequent reports
+
     """
+    global initial_report
+
     for i in range(0, len(results['tadsummary'])):
         emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
 
@@ -139,14 +144,21 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
 
         report_filename = (phdp_globals.options.output_folder_base + output_prefix + 'report.xlsx')
 
+        if initial_report:
+            mode = 'w'
+            initial_report = False
+        else:
+            mode = 'a'
+
         with pd.ExcelWriter(
                 report_filename,
-                mode="w",
+                mode=mode,
                 engine="openpyxl",
         ) as writer:
-            report_df.to_excel(writer, index=False, header=False, sheet_name='Emissions %d' % emissions_cycle_number)
+            report_df.to_excel(writer, index=False, header=False, sheet_name='%s Emissions %d' %
+                                                                             (calc_mode, emissions_cycle_number))
 
-        return report_filename
+    return report_filename
 
 
 def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site):
@@ -161,6 +173,9 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
         test_type (str): test type, i.e. 'transient' or 'modal'
         test_num (int): the number assigned to the test, e.g. '00139'
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
+
+    Returns:
+        Report file name for use by subsequent reports
 
     """
     # create report header
@@ -300,7 +315,7 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
     return report_filename
 
 
-def calc_emscalresults_drift_check(report_df, check_phase, limit_pct, driftline, components):
+def calc_emscalresults_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
     source = phdp_globals.test_data['EmsCalResults']
 
     for component in components:
@@ -308,9 +323,12 @@ def calc_emscalresults_drift_check(report_df, check_phase, limit_pct, driftline,
                 ['DriftSpanValue_ppm', 'DriftSpanRange_ppm', 'DriftZeroMeasured_ppm', 'DriftSpanMeasured_ppm',
                  'DriftZero2Measured_ppm'],
                 [5, 1, 2, 6, 9]):
-            if any((source['DriftLine'] == driftline) & (source['DriftComponent'] == component)):
-                value = source.loc[(source['DriftLine'] == driftline) & (source['DriftComponent'] == component),
-                        measurement_type].item()
+
+            row_select = ((source['DriftLine'] == driftline) & (source['DriftComponent'] == component)
+                          & (source['EmissionsCycleNumber_Integer'] == emissions_cycle_number))
+
+            if any(row_select):
+                value = source.loc[row_select, measurement_type].item()
 
                 if measurement_type == 'DriftSpanValue_ppm':
                     nominal_span_ppm = value
@@ -331,16 +349,19 @@ def calc_emscalresults_drift_check(report_df, check_phase, limit_pct, driftline,
                                  col_offset=offset + 2)
 
 
-def calc_driftcheck_drift_check(report_df, check_phase, limit_pct, driftline, components):
+def calc_driftcheck_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
     source = phdp_globals.test_data['DriftCheck']
 
     for component in components:
         for measurement_type, offset in zip(
                 ['DriftSpanValue_ppm', 'DriftSpanRange_ppm', 'DriftZeroMeasured_ppm', 'DriftSpanMeasured_ppm'],
                 [5, 1, 2, 6]):
-            if any((source['DriftLine'] == driftline) & (source['DriftComponent'] == component)):
-                value = source.loc[(source['DriftLine'] == driftline) & (source['DriftComponent'] == component),
-                        measurement_type].item()
+
+            row_select = ((source['DriftLine'] == driftline) & (source['DriftComponent'] == component)
+                          & (source['EmissionsCycleNumber_Integer'] == emissions_cycle_number))
+
+            if any(row_select):
+                value = source.loc[row_select, measurement_type].item()
 
                 if measurement_type == 'DriftSpanValue_ppm':
                     nominal_span_ppm = value
@@ -361,7 +382,7 @@ def calc_driftcheck_drift_check(report_df, check_phase, limit_pct, driftline, co
                                  col_offset=offset + 2)
 
 
-def calc_bagdata_drift_check(report_df, check_phase, limit_pct, driftline, components):
+def calc_bagdata_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
     source = phdp_globals.test_data['BagData']
 
     for component in components:
@@ -369,9 +390,12 @@ def calc_bagdata_drift_check(report_df, check_phase, limit_pct, driftline, compo
                 ['RbSpanValue_ppm', 'RbRange_ppm', 'RbZeroCalMeasured_ppm', 'RbSpanCalMeasured_ppm',
                  'RbZero2CalMeasured_ppm'],
                 [5, 1, 2, 6, 9]):
-            if any((source['RbLine'] == driftline) & (source['RbComponent'] == component)):
-                value = source.loc[(source['RbLine'] == driftline) & (source['RbComponent'] == component),
-                        measurement_type].item()
+
+            row_select = ((source['RbLine'] == driftline) & (source['RbComponent'] == component)
+                          & (source['EmissionsCycleNumber_Integer'] == emissions_cycle_number))
+
+            if any(row_select):
+                value = source.loc[row_select, measurement_type].item()
 
                 if measurement_type == 'RbSpanValue_ppm':
                     nominal_span_ppm = value
@@ -392,16 +416,19 @@ def calc_bagdata_drift_check(report_df, check_phase, limit_pct, driftline, compo
                                  col_offset=offset + 2)
 
 
-def calc_bagdriftcheck_drift_check(report_df, check_phase, limit_pct, driftline, components):
+def calc_bagdriftcheck_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
     source = phdp_globals.test_data['BagDriftCheck']
 
     for component in components:
         for measurement_type, offset in zip(
                 ['DriftSpanValue_ppm', 'DriftSpanRange_ppm', 'DriftZeroMeasured_ppm', 'DriftSpanMeasured_ppm'],
                 [5, 1, 2, 6]):
-            if any((source['DriftLine'] == driftline) & (source['DriftComponent'] == component)):
-                value = source.loc[(source['DriftLine'] == driftline) & (source['DriftComponent'] == component),
-                        measurement_type].item()
+
+            row_select = ((source['DriftLine'] == driftline) & (source['DriftComponent'] == component) &
+                          (source['EmissionsCycleNumber_Integer'] == emissions_cycle_number))
+
+            if any(row_select):
+                value = source.loc[row_select, measurement_type].item()
 
                 if measurement_type == 'DriftSpanValue_ppm':
                     nominal_span_ppm = value
@@ -422,7 +449,7 @@ def calc_bagdriftcheck_drift_check(report_df, check_phase, limit_pct, driftline,
                                  col_offset=offset + 2)
 
 
-def generate_driftcheck_report(report_filename):
+def generate_driftcheck_report(report_filename, results):
     """
     Generate a transient test report.
 
@@ -433,37 +460,45 @@ def generate_driftcheck_report(report_filename):
     report_df = pd.read_csv(path + os.sep + 'drift_check_report_template.csv', encoding='UTF-8', header=None)
     report_df = report_df.fillna('')
 
-    for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
-        if check_phase == 'PRE':
-            calc_method = calc_emscalresults_drift_check
-        else:
-            calc_method = calc_driftcheck_drift_check
+    emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+                        for i in range(0, len(results['tadsummary']))]
 
-        driftline = 'DIRECT'
-        components = ['COH', 'CO2', 'CH4', 'THC', 'NOX', 'O2']
-        calc_method(report_df, check_phase, limit_pct, driftline, components)
+    for i in range(0, len(results['tadsummary'])):
+        emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
 
-        driftline = 'HOT'
-        components = ['NH3']
-        calc_method(report_df, check_phase, limit_pct, driftline, components)
+        for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
+            if check_phase == 'PRE':
+                calc_method = calc_emscalresults_drift_check
+                ecn = emissions_cycles[0]
+            else:
+                calc_method = calc_driftcheck_drift_check
+                ecn = emissions_cycles[-1]
 
-        driftline = 'DILUTE'
-        components = ['COL', 'CO2', 'CH4', 'THC', 'NOX', 'N2O']
-        calc_method(report_df, check_phase, limit_pct, driftline, components)
+            driftline = 'DIRECT'
+            components = ['COH', 'CO2', 'CH4', 'THC', 'NOX', 'O2']
+            calc_method(report_df, ecn, check_phase, limit_pct, driftline, components)
 
-        driftline = 'EGR'
-        components = ['CO2']
-        calc_method(report_df, check_phase, limit_pct, driftline, components)
+            driftline = 'HOT'
+            components = ['NH3']
+            calc_method(report_df, ecn, check_phase, limit_pct, driftline, components)
 
-    for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
-        if check_phase == 'PRE':
-            calc_method = calc_bagdata_drift_check
-        else:
-            calc_method = calc_bagdriftcheck_drift_check
+            driftline = 'DILUTE'
+            components = ['COL', 'CO2', 'CH4', 'THC', 'NOX', 'N2O']
+            calc_method(report_df, ecn, check_phase, limit_pct, driftline, components)
 
-        driftline = 'BAG'
-        components = ['COL', 'CO2', 'CH4', 'THC', 'NOX', 'N2O']
-        calc_method(report_df, check_phase, limit_pct, driftline, components)
+            driftline = 'EGR'
+            components = ['CO2']
+            calc_method(report_df, ecn, check_phase, limit_pct, driftline, components)
+
+        for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
+            if check_phase == 'PRE':
+                calc_method = calc_bagdata_drift_check
+            else:
+                calc_method = calc_bagdriftcheck_drift_check
+
+            driftline = 'BAG'
+            components = ['COL', 'CO2', 'CH4', 'THC', 'NOX', 'N2O']
+            calc_method(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components)
 
         with pd.ExcelWriter(
                 report_filename,
@@ -471,4 +506,39 @@ def generate_driftcheck_report(report_filename):
                 engine="openpyxl",
                 if_sheet_exists="replace",
         ) as writer:
-            report_df.to_excel(writer, index=False, header=False, sheet_name='Drift Check')
+            report_df.to_excel(writer, index=False, header=False,
+                               sheet_name='Drift Check %d' % emissions_cycle_number)
+
+
+def generate_general_report(report_filename, results, test_datetime, test_site):
+    """
+
+    Args:
+        report_filename (str): the Excel report filename, a new sheet will be added
+        results (dict): a dictionary containing the results of the emissions calculations.
+        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
+        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
+
+    """
+    report_df = pd.read_csv(path + os.sep + 'general_report_template.csv', encoding='UTF-8', header=None)
+    report_df = report_df.fillna('')
+
+    # write header
+    set_value_at(report_df, 'Cell', test_site)
+    set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
+    set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+    set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
+    set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
+    set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
+    set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
+
+    # drift corrected time-aligned data
+    dctad = results['dctad']
+
+    with pd.ExcelWriter(
+            report_filename,
+            mode="a",
+            engine="openpyxl",
+            if_sheet_exists="replace",
+    ) as writer:
+        report_df.to_excel(writer, index=False, header=False, sheet_name='General')

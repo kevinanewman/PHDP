@@ -113,7 +113,7 @@ def load_data(test_site):
     required_file_names = ['BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
                            'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
                            'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
-                           'drift_corrected_BagData']
+                           'drift_corrected_BagData', 'Workstation']
 
     optional_file_names = ['CVSDLSFlows']
 
@@ -1977,6 +1977,8 @@ def run_phdp(runtime_options):
                         phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
+                    output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
+
                     if test_type == 'transient':
                         report_filename = generate_transient_report(output_prefix, calc_mode, results, test_datetime,
                                                                     test_type, test_num, test_site, vehicle_test,
@@ -1985,7 +1987,8 @@ def run_phdp(runtime_options):
                         report_filename = generate_modal_report(output_prefix, calc_mode, results, test_datetime,
                                                                 test_type, test_num, test_site)
 
-                    generate_driftcheck_report(report_filename)
+                    generate_driftcheck_report(report_filename, results)
+                    # generate_general_report(report_filename, results, test_datetime, test_site)
 
                     print('done!')
 
