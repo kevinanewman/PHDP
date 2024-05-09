@@ -25,10 +25,11 @@ sys.path.insert(0, os.path.join(path, '..'))  # picks up omega_model sub-package
 from phdp import *
 from constants import constants
 import test_sites
+from phdp_reports import *
 
 pre_test_pm_measurement_mg = None
 post_test_pm_measurement_mg = None
-
+pm_mass_mg = None
 
 def init_phdp(runtime_options):
     """
@@ -219,7 +220,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         test_type (str): 'transient' or 'modal'
 
     Returns:
@@ -406,7 +407,7 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         emissions_cycle_number (int): emissions cycle number to process
         drift_corrected (bool): use drift-correct background if ``True``
 
@@ -590,7 +591,7 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
 
     Returns:
         Nothing, updates time_aligned_data
@@ -864,7 +865,7 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         emissions_cycle_number (int): emissions cycle number to process
         drift_corrected (bool): use drift-correct background if ``True``
 
@@ -1003,7 +1004,7 @@ def calc_1036_results(calc_mode, drift_corrected_time_aligned_data, drift_correc
     Calculate 1036 summary and carbon balance error check results
 
     Args:
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         drift_corrected_time_aligned_data (dataframe): drift-corrected, time-aligned continuous test data
         drift_corrected_time_aligned_data_summary_results (series): drift correct summary results
         emissions_cycle_number (int): emissions cycle number to process
@@ -1204,283 +1205,6 @@ def get_pm_measurement(prompt, pm_measurement_mg):
     return pm_measurement_mg
 
 
-def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
-                              vehicle_test, pm_mass_mg):
-    """
-    Generate a transient test report.
-
-    Args:
-        output_prefix (str): the prefix to be added to the filename of the generated report file.
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
-        results (dict): a dictionary containing the results of the emissions calculations.
-        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
-        test_type (str): test type, i.e. 'transient' or 'modal'
-        test_num (int): the number assigned to the test, e.g. '00139'
-        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
-        vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
-        pm_mass_mg (float): particulate matter mass (mg)
-
-    """
-    for i in range(0, len(results['tadsummary'])):
-        emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
-
-        # create report header
-        report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
-        report_df = report_df.fillna('')
-
-        set_value_at(report_df, 'Test Date',
-                     '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
-
-        set_value_at(report_df, 'Test Cell', test_site)
-        set_value_at(report_df, 'Test Number', test_num)
-        set_value_at(report_df, 'Test Type', test_type)
-
-        if max([results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
-                for i in range(len(results['tadsummary']))]) > 1:
-            cycle_name = phdp_globals.test_data['TestDetails'].loc[
-                phdp_globals.test_data['TestDetails']['EmissionsCycleNumber_Integer'] == emissions_cycle_number,
-                'CycleName'].item()
-
-            set_value_at(report_df, 'Cycle ID', cycle_name)
-        else:
-            set_value_at(report_df, 'Cycle ID', phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
-
-        set_value_at(report_df, 'Calculation Mode', calc_mode)
-
-        set_value_at(report_df, 'Original Concentration', results['tadsummary'][i].iloc[0, 0:7].values)
-        set_value_at(report_df, 'Corrected Concentration', results['dctadsummary'][i].iloc[0, 0:7].values)
-        set_value_at(report_df, 'Original Mass', results['tadsummary'][i].iloc[0, 9:17].values)
-
-        set_value_at(report_df, 'Corrected Mass', results['dctadsummary'][i].iloc[0, 9:17].values)
-
-        set_value_at(report_df, 'Original Background Mass', results['tadsummary'][i].iloc[0, 17:25].values)
-        set_value_at(report_df, 'Corrected Background Mass', results['dctadsummary'][i].iloc[0, 17:25].values)
-
-        original_net_mass = results['tadsummary'][i].iloc[0, 25:33].values
-        corrected_net_mass = results['dctadsummary'][i].iloc[0, 25:33].values
-
-        set_value_at(report_df, 'Original Net Mass', original_net_mass)
-        set_value_at(report_df, 'Corrected Net Mass', corrected_net_mass)
-
-        if calc_mode == 'dilute':
-            net_mass_drift_check_pct = ((original_net_mass - corrected_net_mass) /
-                                        np.maximum(original_net_mass, sys.float_info.epsilon) * 100)
-            set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
-
-        cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
-
-        # TODO: PM calculations
-        if pm_mass_mg is not None:
-            set_value_at(report_df, 'Total PM Mass', [pm_mass_mg])
-            set_value_at(report_df, 'BSPM', [pm_mass_mg / 1000 / cycle_work_kWh.item()])
-        else:
-            set_value_at(report_df, 'Total PM Mass', 'N/A')
-            set_value_at(report_df, 'BSPM', 'N/A')
-
-        set_value_at(report_df, 'Cycle Work', cycle_work_kWh)
-        set_value_at(report_df, 'Total Dilution Flow', results['tadsummary'][i]['total_dilute_flow_mol'])
-
-        original_brake_specific_emissions = results['tadsummary'][i].iloc[0, 33:41].values
-        corrected_brake_specific_emissions = results['dctadsummary'][i].iloc[0, 33:41].values
-        brake_specific_emissions_drift_check_pct = (
-                (original_brake_specific_emissions - corrected_brake_specific_emissions) /
-                np.maximum(original_brake_specific_emissions, sys.float_info.epsilon) * 100)
-
-        set_value_at(report_df, 'Original Brake Specific Emissions', original_brake_specific_emissions)
-        set_value_at(report_df, 'Corrected Brake Specific Emissions', corrected_brake_specific_emissions)
-        set_value_at(report_df, 'Brake Specific Emissions Drift Check %', brake_specific_emissions_drift_check_pct)
-
-        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'])
-        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'])
-        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'])
-
-        set_value_at(report_df, 'ϵaC', '±%.3f' % results['1036_calculations'][i]['eaC_g_limit'].iloc[0],
-                     col_offset=2)
-        set_value_at(report_df, 'ϵaCrate', '±%.3f' % results['1036_calculations'][i]['eaCrate_g/h_limit'].iloc[0],
-                     col_offset=2)
-
-        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%_check'],
-                     col_offset=3)
-        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g_check'],
-                     col_offset=3)
-        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h_check'],
-                     col_offset=3)
-
-        set_value_at(report_df, 'CO2 Energy_corr', results['1036_calculations'][i]['CO2 Energy_Corr g/kWh'],
-                     col_offset=2)
-        set_value_at(report_df, 'mfuelcor', results['1036_calculations'][i]['mfuelcor_meas'])
-        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'])
-
-        if vehicle_test and calc_mode != 'dilute-bag':
-            set_value_at(report_df, 'Simulation Average Vehicle Speed',
-                         results['1036_calculations'][i]['simulation_average_vehicle_speed_mps'], col_offset=2)
-            set_value_at(report_df, 'CycleAverageEngineWork',
-                         results['1036_calculations'][i]['CycleAverageEngineWork_kWh'], col_offset=2)
-            set_value_at(report_df, 'CycleAverageIdleSpeed',
-                         results['1036_calculations'][i]['CycleAverageIdleSpeed_rpm'], col_offset=2)
-            set_value_at(report_df, 'CycleAverageIdleTorque',
-                         results['1036_calculations'][i]['CycleAverageTorque_Nm'], col_offset=2)
-            set_value_at(report_df, 'EngineToVehicleSpeedRatio',
-                         results['1036_calculations'][i]['EngineToVehicleSpeedRatio_rev/mi'], col_offset=2)
-        else:
-            set_value_at(report_df, 'Simulation Average Vehicle Speed', 'NA', col_offset=2)
-            set_value_at(report_df, 'CycleAverageEngineWork', 'NA', col_offset=2)
-            set_value_at(report_df, 'CycleAverageIdleSpeed', 'NA', col_offset=2)
-            set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
-            set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
-
-        # report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
-        #                  '%d-report.csv' % emissions_cycle_number,
-        #                  encoding='UTF-8', index=False, header=False)
-        report_df.to_excel(phdp_globals.options.output_folder_base + output_prefix +
-                         '%d-report.xlsx' % emissions_cycle_number, index=False, header=False)
-
-
-def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site):
-    """
-    Generate a modal report and calculated mode-weighted mass and brake-specific emissions.
-
-    Args:
-        output_prefix (str): the prefix to be added to the filename of the generated report file.
-        calc_mode (str): the mode used during the emissions calculations - either 'dilute' or 'raw'.
-        results (dict): a dictionary containing the results of the emissions calculations.
-        test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
-        test_type (str): test type, i.e. 'transient' or 'modal'
-        test_num (int): the number assigned to the test, e.g. '00139'
-        test_site (str): the name of the site where the test was performed, e.g. 'HD02'
-
-    """
-    # create report header
-    report_df = pd.read_csv(path + os.sep + 'modal_report_template.csv', encoding='UTF-8', header=None)
-    report_df = report_df.fillna('')
-
-    set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
-    set_value_at(report_df, 'Test Cell', test_site)
-    set_value_at(report_df, 'Test Number', test_num)
-    set_value_at(report_df, 'Test Type', test_type)
-    set_value_at(report_df, 'Cycle ID', '%s' % phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
-    set_value_at(report_df, 'Calculation Mode', calc_mode)
-
-    for i in range(0, len(results['dctadsummary'])):
-        mode_number = results['dctadsummary'][i]['ModeNumber_Integer'].iloc[0]
-        col_offset = mode_number + 1
-
-        if mode_number > 4:
-            # extend report_df
-            report_df.insert(mode_number+5, ' ' * mode_number, '')
-
-        set_value_at(report_df, 'Mode', mode_number, col_offset=col_offset)
-
-        set_value_at(report_df, 'Sample CO2', results['dctadsummary'][i]['mCO2_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample CO', results['dctadsummary'][i]['mCO_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample NOX', results['dctadsummary'][i]['mNOx_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample HC', results['dctadsummary'][i]['mTHC_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample CH4', results['dctadsummary'][i]['mCH4_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample N2O', results['dctadsummary'][i]['mN2O_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample NMHC', results['dctadsummary'][i]['mNMHC_g'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Sample NMHC+NOx', results['dctadsummary'][i]['mNMHC_g+mNOx_g'],
-                     col_offset=col_offset)
-
-        if calc_mode == 'dilute':
-            set_value_at(report_df, 'Background CO2', results['dctadsummary'][i]['mCO2bkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background CO', results['dctadsummary'][i]['mCObkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background NOX', results['dctadsummary'][i]['mNOxbkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background HC', results['dctadsummary'][i]['mTHCbkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background CH4', results['dctadsummary'][i]['mCH4bkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background N2O', results['dctadsummary'][i]['mN2Obkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background NMHC', results['dctadsummary'][i]['mNMHCbkgrnd_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Background NMHC+NOx', results['dctadsummary'][i]['mNMHCbkgrnd_g+mNOxbkgrnd_g'],
-                         col_offset=col_offset)
-
-            set_value_at(report_df, 'Net CO2', results['dctadsummary'][i]['mCO2net_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net CO', results['dctadsummary'][i]['mCOnet_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net NOX', results['dctadsummary'][i]['mNOxnet_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net HC', results['dctadsummary'][i]['mTHCnet_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net CH4', results['dctadsummary'][i]['mCH4net_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net N2O', results['dctadsummary'][i]['mN2Onet_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net NMHC', results['dctadsummary'][i]['mNMHCnet_g'],
-                         col_offset=col_offset)
-            set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'],
-                         col_offset=col_offset)
-
-        set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'],
-                     col_offset=col_offset)
-
-        set_value_at(report_df, 'mfuelcor_meas', results['1036_calculations'][i]['mfuelcor_meas'],
-                     col_offset=col_offset)
-        set_value_at(report_df, 'mfuelcor_dil', results['1036_calculations'][i]['mfuelcor_dil'],
-                     col_offset=col_offset)
-
-        set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'],
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'],
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate', results['1036_calculations'][i]['eaCrate_g/h'],
-                     col_offset=mode_number)
-
-        set_value_at(report_df, 'ϵrC Limit', '±2',
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC Limit', '±%.3f' % results['1036_calculations'][i]['eaC_g_limit'].iloc[0],
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate Limit', '±%.3f' % results['1036_calculations'][i]['eaCrate_g/h_limit'].iloc[0],
-                     col_offset=mode_number)
-
-        set_value_at(report_df, 'ϵrC Check', results['1036_calculations'][i]['erC_rel_err_%_check'],
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaC Check', results['1036_calculations'][i]['eaC_g_check'],
-                     col_offset=mode_number)
-        set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'],
-                     col_offset=mode_number)
-
-    if 'WeightingFactor_Fraction' in phdp_globals.test_data['CycleDefinition']:
-        weighted_power = 0
-        for i in range(0, len(results['dctadsummary'])):
-            weight = phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i]
-            set_value_at(report_df, 'Weighting Factor', weight, col_offset=i+2)
-            weighted_power += results['dctad'][i]['Power_kW'] * weight
-
-        set_value_at(report_df, 'Power (kW)', weighted_power)
-
-        # calculate weighted values
-        for idx, signal in enumerate(('CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC')):
-            weighted_mass_emissions = 0
-            for i in range(0, len(results['dctadsummary'])):
-                weighted_mass_emissions += (
-                        results['dctadsummary'][i]['m%s_g' % signal] *
-                        phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i] /
-                        results['dctad'][i]['elapsed_time_s'] * 3600)
-            weighted_specific_emissions = weighted_mass_emissions / weighted_power
-            set_value_at(report_df, 'Mass Emissions (g/h)', weighted_mass_emissions, col_offset=idx + 1)
-            set_value_at(report_df, 'Specific Emsissions (g/kWh)', weighted_specific_emissions, col_offset=idx + 1)
-
-    # report_df.to_csv(phdp_globals.options.output_folder_base + output_prefix + 'report.csv', encoding='UTF-8',
-    #                  index=False, header=False)
-    report_df.to_excel(phdp_globals.options.output_folder_base + output_prefix + 'report.xlsx', index=False,
-                       header=False)
-
-
 def calc_STEYX(ref, meas, slope, intercept):
     """
     This function calculates the standard error of prediction (STEYX) given a reference dataset (ref),
@@ -1525,25 +1249,6 @@ def calc_stats(ref, meas):
     STEYX = calc_STEYX(ref, meas, slope, intercept)
 
     return {'slope': slope, 'intercept': intercept, 'R2': r_value**2, 'SEE': STEYX}
-
-
-def pass_fail_range(value, allowed_range):
-    """
-    This function determines whether a given value falls within a specified range.
-    It takes two arguments: the value to be checked (`value`) and the range of acceptable values (`range`).
-
-    Arguments:
-        value (any): The value to be evaluated in relation to the provided range.
-        allowed_range (list or tuple of 2 elements): A list or tuple consisting of the lower and upper bounds of the valid range for the value.
-
-    Returns:
-        str: Returns 'pass' if the `value` falls within the range, otherwise returns 'FAIL'.
-
-    """
-    if allowed_range[0] <= value <= allowed_range[1]:
-        return 'pass'
-    else:
-        return 'FAIL'
 
 
 def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=None, do_plots=False):
@@ -1936,54 +1641,100 @@ def proportionality_check(ref, meas, skip_secs=5):
     return slope, proportionality_pct
 
 
-def particulate_matter_calculations(test_type):
+def particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_aligned_data):
     """
 
     Args:
         test_type (str): test type, i.e. 'transient' or 'modal'
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
+        drift_corrected_time_aligned_data (DataFrame): drift-corrected time-aligned data
 
     Returns:
 
     """
-    global pre_test_pm_measurement_mg, post_test_pm_measurement_mg
+    global pre_test_pm_measurement_mg, post_test_pm_measurement_mg, pm_mass_mg
 
     pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
 
-    if any(pm_sample_pts):
-        pm_sample_start_index = \
-            (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
-        pm_sample_end_index = \
-            (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
+    if calc_mode != 'dilute-bag' and any(pm_sample_pts):
+        pm_sample_start_index = (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[0]
+
+        pm_sample_end_index = (phdp_globals.test_data['ContinuousData'].loc[pm_sample_pts, :].index)[-1]
+
         pm_sample_start_time = (
             phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_start_index]
+
         pm_sample_end_time = (
             phdp_globals.test_data['ContinuousData']['Time_Date'].loc)[pm_sample_end_index]
+
         cvs_sample_start = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_start_time
         cvs_sample_end = phdp_globals.test_data['CVSDLSFlows']['Time_Date'] == pm_sample_end_time
         cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
         cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
+
         cvs_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['CVSMassFlow_kg/s'].loc[
-                             cvs_sample_start_index:cvs_sample_end_index]
+                             cvs_sample_start_index:cvs_sample_end_index+1]
+
         transfer_mass_flow_kgps = phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'].loc[
-                                  cvs_sample_start_index:cvs_sample_end_index] / 1000
+                                  cvs_sample_start_index:cvs_sample_end_index+1] / 1000
+
         cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['SamplePeriod_s']
         transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['SamplePeriod_s']
+
         dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
-        if test_type == 'transient':
-            pre_test_pm_measurement_mg = (
-                get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
+        if pre_test_pm_measurement_mg is None and post_test_pm_measurement_mg is None:
+            if test_type == 'transient':
+                pre_test_pm_measurement_mg = (
+                    get_pm_measurement('Enter pre-test PM test filter mass (mg)', pre_test_pm_measurement_mg))
 
-            post_test_pm_measurement_mg = (
-                get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
+                post_test_pm_measurement_mg = (
+                    get_pm_measurement('Enter post-test PM test filter mass (mg)', post_test_pm_measurement_mg))
 
-            pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
-            pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
-        else:  # TODO: handling for modal tests with multiple samples ...
-            pass
+                pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
+                pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
+            else:  # TODO: handling for modal tests with multiple samples ...
+                pass
 
         # proportionality check
         proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps)
+
+        drift_corrected_time_aligned_data['CVS Dilution Ratio'] = \
+            (drift_corrected_time_aligned_data['CVSFlow_mol/s'] /
+             drift_corrected_time_aligned_data['nexh_mol/s'])
+
+        cvs_sample_start = (phdp_globals.test_data['CVSDLSFlows']['Time_Date'] ==
+                            drift_corrected_time_aligned_data['Time_Date'].iloc[0])
+
+        cvs_sample_end = (phdp_globals.test_data['CVSDLSFlows']['Time_Date'] ==
+                          drift_corrected_time_aligned_data['Time_Date'].iloc[-1])
+
+        cvs_sample_start_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_start, :]).index[0]
+
+        cvs_sample_end_index = (phdp_globals.test_data['CVSDLSFlows'].loc[cvs_sample_end, :]).index[0]
+
+        drift_corrected_time_aligned_data['TransferMassFlow_g/s'] = \
+            phdp_globals.test_data['CVSDLSFlows']['TransferMassFlow_g/s'][
+            cvs_sample_start_index:cvs_sample_end_index+1].values
+
+        drift_corrected_time_aligned_data['FilterMassFlow_g/s'] = \
+            phdp_globals.test_data['CVSDLSFlows']['FilterMassFlow_g/s'][
+            cvs_sample_start_index:cvs_sample_end_index+1].values
+
+        drift_corrected_time_aligned_data['FilterPressureDrop_kPa'] = \
+            phdp_globals.test_data['CVSDLSFlows']['FilterPressureDrop_kPa'][
+            cvs_sample_start_index:cvs_sample_end_index+1].values
+
+        drift_corrected_time_aligned_data['PSU Dilution Ratio'] = \
+            (drift_corrected_time_aligned_data['FilterMassFlow_g/s'] /
+             drift_corrected_time_aligned_data['TransferMassFlow_g/s'])
+
+        drift_corrected_time_aligned_data['Overall Dilution Ratio'] = \
+            (drift_corrected_time_aligned_data['PSU Dilution Ratio'] *
+             drift_corrected_time_aligned_data['CVS Dilution Ratio'])
+
+        drift_corrected_time_aligned_data['Kh'] = 9.953 * drift_corrected_time_aligned_data['xH2Oint_mol/mol'] + 0.832
+
     else:
         pm_mass_mg = None
 
@@ -2184,6 +1935,10 @@ def run_phdp(runtime_options):
 
                             calculations_1036['ModeNumber_Integer'] = mode_number
 
+                        # PM measurements and related calculations:
+                        pm_mass_mg = \
+                            particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_aligned_data)
+
                         results['tad'].append(time_aligned_data)
                         results['dctad'].append(drift_corrected_time_aligned_data)
                         results['tadsummary'].append(time_aligned_data_summary)
@@ -2222,15 +1977,15 @@ def run_phdp(runtime_options):
                         phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
-                    # PM measurements:
-                    pm_mass_mg = particulate_matter_calculations(test_type)
-
                     if test_type == 'transient':
-                        generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                                  test_site, vehicle_test, pm_mass_mg)
+                        report_filename = generate_transient_report(output_prefix, calc_mode, results, test_datetime,
+                                                                    test_type, test_num, test_site, vehicle_test,
+                                                                    pm_mass_mg)
                     else:
-                        generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num,
-                                                  test_site)
+                        report_filename = generate_modal_report(output_prefix, calc_mode, results, test_datetime,
+                                                                test_type, test_num, test_site)
+
+                    generate_driftcheck_report(report_filename, results, test_datetime)
 
                     print('done!')
 

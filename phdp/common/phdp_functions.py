@@ -436,6 +436,25 @@ def set_value_at(df, search_str, set_value, col_offset=1, small_float_format='%.
             df.iloc[row_index, col_index + col_offset] = set_value
 
 
+def pass_fail_range(value, allowed_range):
+    """
+    This function determines whether a given value falls within a specified range.
+    It takes two arguments: the value to be checked (`value`) and the range of acceptable values (`range`).
+
+    Arguments:
+        value (any): The value to be evaluated in relation to the provided range.
+        allowed_range (list or tuple of 2 elements): A list or tuple consisting of the lower and upper bounds of the valid range for the value.
+
+    Returns:
+        str: Returns 'pass' if the `value` falls within the range, otherwise returns 'FAIL'.
+
+    """
+    if allowed_range[0] <= value <= allowed_range[1]:
+        return 'pass'
+    else:
+        return 'FAIL'
+
+
 if __name__ == '__main__':
     try:
         pass
