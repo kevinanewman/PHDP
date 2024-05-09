@@ -316,6 +316,21 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
 
 
 def calc_emscalresults_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
+    """
+    Calculate pass/fail drift check tests for data in EmsCalResults
+
+    Args:
+        report_df (DataFrame): the drift check report data
+        emissions_cycle_number (int): emissions cycle number to process
+        check_phase (str): 'PRE' or 'POST'
+        limit_pct (float): The pass/fail limit tolerance, in percent
+        driftline (str): the emissions drift line e.g. 'DILUTE', 'HOT', etc
+        components ([str]): list of strings, one or more emissions components, e.g. ['CO2', 'NOX', ...]
+
+    Returns:
+        Nothing, updates ``report_df`` with measured and calculated values
+
+    """
     source = phdp_globals.test_data['EmsCalResults']
 
     for component in components:
@@ -350,6 +365,21 @@ def calc_emscalresults_drift_check(report_df, emissions_cycle_number, check_phas
 
 
 def calc_driftcheck_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
+    """
+    Calculate pass/fail drift check tests for data in DriftCheck
+
+    Args:
+        report_df (DataFrame): the drift check report data
+        emissions_cycle_number (int): emissions cycle number to process
+        check_phase (str): 'PRE' or 'POST'
+        limit_pct (float): The pass/fail limit tolerance, in percent
+        driftline (str): the emissions drift line e.g. 'DILUTE', 'HOT', etc
+        components ([str]): list of strings, one or more emissions components, e.g. ['CO2', 'NOX', ...]
+
+    Returns:
+        Nothing, updates ``report_df`` with measured and calculated values
+
+    """
     source = phdp_globals.test_data['DriftCheck']
 
     for component in components:
@@ -383,6 +413,21 @@ def calc_driftcheck_drift_check(report_df, emissions_cycle_number, check_phase, 
 
 
 def calc_bagdata_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
+    """
+    Calculate pass/fail drift check tests for data in BagData
+
+    Args:
+        report_df (DataFrame): the drift check report data
+        emissions_cycle_number (int): emissions cycle number to process
+        check_phase (str): 'PRE' or 'POST'
+        limit_pct (float): The pass/fail limit tolerance, in percent
+        driftline (str): the emissions drift line e.g. 'DILUTE', 'HOT', etc
+        components ([str]): list of strings, one or more emissions components, e.g. ['CO2', 'NOX', ...]
+
+    Returns:
+        Nothing, updates ``report_df`` with measured and calculated values
+
+    """
     source = phdp_globals.test_data['BagData']
 
     for component in components:
@@ -417,6 +462,21 @@ def calc_bagdata_drift_check(report_df, emissions_cycle_number, check_phase, lim
 
 
 def calc_bagdriftcheck_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
+    """
+    Calculate pass/fail drift check tests for data in BagDriftCheck
+
+    Args:
+        report_df (DataFrame): the drift check report data
+        emissions_cycle_number (int): emissions cycle number to process
+        check_phase (str): 'PRE' or 'POST'
+        limit_pct (float): The pass/fail limit tolerance, in percent
+        driftline (str): the emissions drift line e.g. 'DILUTE', 'HOT', etc
+        components ([str]): list of strings, one or more emissions components, e.g. ['CO2', 'NOX', ...]
+
+    Returns:
+        Nothing, updates ``report_df`` with measured and calculated values
+
+    """
     source = phdp_globals.test_data['BagDriftCheck']
 
     for component in components:
@@ -451,10 +511,13 @@ def calc_bagdriftcheck_drift_check(report_df, emissions_cycle_number, check_phas
 
 def generate_driftcheck_report(report_filename, results, test_type, test_name):
     """
-    Generate a transient test report.
+    Generate drift check reports, one per emissions cycle
 
     Args:
         report_filename (str): the Excel report filename, a new sheet will be added
+        results (dict): a dictionary containing the results of the emissions calculations.
+        test_type (str): test type, i.e. 'transient' or 'modal'
+        test_name (str): test type name, e.g. 'FTP', 'RMC', etc
 
     """
     report_df = pd.read_csv(path + os.sep + 'drift_check_report_template.csv', encoding='UTF-8', header=None)
@@ -467,7 +530,6 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
                             for i in range(0, len(results['tadsummary']))]
 
     for emissions_cycle_number in emissions_cycles:
-
         for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
             if check_phase == 'PRE':
                 calc_method = calc_emscalresults_drift_check
@@ -515,12 +577,13 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
                                sheet_name='Drift Check %d' % emissions_cycle_number)
 
 
-def generate_general_report(report_filename, results, test_datetime, test_site):
+def generate_general_report(report_filename, results, test_type, test_datetime, test_site):
     """
 
     Args:
         report_filename (str): the Excel report filename, a new sheet will be added
         results (dict): a dictionary containing the results of the emissions calculations.
+        test_type (str): test type, i.e. 'transient' or 'modal'
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
 
@@ -528,22 +591,29 @@ def generate_general_report(report_filename, results, test_datetime, test_site):
     report_df = pd.read_csv(path + os.sep + 'general_report_template.csv', encoding='UTF-8', header=None)
     report_df = report_df.fillna('')
 
-    # write header
-    set_value_at(report_df, 'Cell', test_site)
-    set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
-    set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
-    set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
-    set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
-    set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
-    set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
+    if test_type == 'modal':
+        emissions_cycles = [1]
+    else:
+        emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+                            for i in range(0, len(results['tadsummary']))]
 
-    # drift corrected time-aligned data
-    dctad = results['dctad']
+    for emissions_cycle_number in emissions_cycles:
+        # write header
+        set_value_at(report_df, 'Cell', test_site)
+        set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
+        set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+        set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
+        set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
+        set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
+        set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
 
-    with pd.ExcelWriter(
-            report_filename,
-            mode="a",
-            engine="openpyxl",
-            if_sheet_exists="replace",
-    ) as writer:
-        report_df.to_excel(writer, index=False, header=False, sheet_name='General')
+        # drift corrected time-aligned data
+        # dctad = results['dctad']
+
+        with pd.ExcelWriter(
+                report_filename,
+                mode="a",
+                engine="openpyxl",
+                if_sheet_exists="replace",
+        ) as writer:
+            report_df.to_excel(writer, index=False, header=False, sheet_name='General %d' % emissions_cycle_number)
