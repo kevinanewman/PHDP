@@ -449,7 +449,7 @@ def calc_bagdriftcheck_drift_check(report_df, emissions_cycle_number, check_phas
                                  col_offset=offset + 2)
 
 
-def generate_driftcheck_report(report_filename, results, test_name):
+def generate_driftcheck_report(report_filename, results, test_type, test_name):
     """
     Generate a transient test report.
 
@@ -460,11 +460,13 @@ def generate_driftcheck_report(report_filename, results, test_name):
     report_df = pd.read_csv(path + os.sep + 'drift_check_report_template.csv', encoding='UTF-8', header=None)
     report_df = report_df.fillna('')
 
-    emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
-                        for i in range(0, len(results['tadsummary']))]
+    if test_type == 'modal':
+        emissions_cycles = [1]
+    else:
+        emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+                            for i in range(0, len(results['tadsummary']))]
 
-    for i in range(0, len(results['tadsummary'])):
-        emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
+    for emissions_cycle_number in emissions_cycles:
 
         for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
             if check_phase == 'PRE':
