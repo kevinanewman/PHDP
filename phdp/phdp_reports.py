@@ -449,7 +449,7 @@ def calc_bagdriftcheck_drift_check(report_df, emissions_cycle_number, check_phas
                                  col_offset=offset + 2)
 
 
-def generate_driftcheck_report(report_filename, results):
+def generate_driftcheck_report(report_filename, results, test_name):
     """
     Generate a transient test report.
 
@@ -469,7 +469,10 @@ def generate_driftcheck_report(report_filename, results):
         for check_phase, limit_pct in zip(['PRE', 'POST'], [1, 2]):
             if check_phase == 'PRE':
                 calc_method = calc_emscalresults_drift_check
-                ecn = emissions_cycles[0]
+                if test_name == 'RMC':
+                    ecn = 0  # for some reason the pre-check is cycle 0 for RMC, not cycle 1 like the rest of the tests
+                else:
+                    ecn = emissions_cycles[0]
             else:
                 calc_method = calc_driftcheck_drift_check
                 ecn = emissions_cycles[-1]
