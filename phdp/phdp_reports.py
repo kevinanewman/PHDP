@@ -734,8 +734,8 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
             set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
                          pass_fail_range(dctadsummary['BagFillProportionality'].item(), [0, 3.5]), col_offset=7)
 
+        skip_secs = 5
         if phdp_globals.test_data['CVSDLSSampleResults'] is not None:
-            skip_secs = 5
             cvs_dlsresults = phdp_globals.test_data['CVSDLSSampleResults'].iloc[
                              int(skip_secs / constants['SamplePeriod_s']):]
             set_average_min_max(report_df, cvs_dlsresults, 'PM Filter Face Velocity', 'FilterFaceVelocity_cm/s',
@@ -759,6 +759,28 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
             pass_fail = (cvs_dlsresults['TotalResidenceTime_s'].min() >= 1 and
                          cvs_dlsresults['TotalResidenceTime_s'].max() <= 5.5)
             set_value_at(report_df, 'Overall Residence Time', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        dctad_trunc = dctad.iloc[int(skip_secs / constants['SamplePeriod_s']):].copy()
+
+        set_average_min_max(report_df, dctad_trunc, 'CVS Tunnel Dilution Ratio', 'CVS Dilution Ratio', col_offset=2)
+        pass_fail = dctad_trunc['CVS Dilution Ratio'].min() >= 2.0
+        set_value_at(report_df, 'CVS Tunnel Dilution Ratio', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_average_min_max(report_df, dctad_trunc, 'PSU Dilution Ratio', 'PSU Dilution Ratio', col_offset=2)
+
+        set_average_min_max(report_df, dctad_trunc, 'Overall Dilution Ratio', 'Overall Dilution Ratio', col_offset=2)
+        pass_fail = (5.0 <= dctad_trunc['Overall Dilution Ratio'].min() <= 7.0)
+        set_value_at(report_df, 'Overall Dilution Ratio', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_value_at(report_df, 'Proportionality Check (SEE/mean flow)', [dctad_trunc['Proportionality Check'].mean()],
+                     col_offset=2)
+        pass_fail = dctad_trunc['Proportionality Check'].mean() <= 3.5
+        set_value_at(report_df, 'Proportionality Check (SEE/mean flow)', pass_fail_range(pass_fail, [True, True]),
+                     col_offset=7)
+
+        set_value_at(report_df, 'Filter Pressure Drop Increase', [dctad['FilterPressureDrop_kPa'].iloc[-1] -
+                                                                  dctad['FilterPressureDrop_kPa'].iloc[0]],
+                     col_offset=2)
 
         with pd.ExcelWriter(
                 report_filename,

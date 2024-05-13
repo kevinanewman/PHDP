@@ -1672,7 +1672,8 @@ def particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_a
                 pass
 
         # proportionality check
-        proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps)
+        _, drift_corrected_time_aligned_data['Proportionality Check'] = (
+            proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps))
 
         drift_corrected_time_aligned_data['CVS Dilution Ratio'] = \
             (drift_corrected_time_aligned_data['CVSFlow_mol/s'] /
