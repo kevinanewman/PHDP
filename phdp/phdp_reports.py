@@ -636,6 +636,7 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
 
         # drift corrected time-aligned data
         dctad = results['dctad'][emissions_cycle_number-1]
+        dctadsummary = results['dctadsummary'][emissions_cycle_number-1]
 
         set_average_min_max(report_df, dctad, 'Barometric Pressure', 'pCellAmbient_Avg_kPa', col_offset=2)
         pass_fail = (dctad['pCellAmbient_Avg_kPa'].min() >= 92.68 and
@@ -674,6 +675,56 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
                      phdp_globals.test_data['EngineData']['FuelOTCRAT_ratio'], col_offset=2)
         set_value_at(report_df, 'Fuel Low Heating Value',
                      phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
+
+        # Emissions data
+        EmsCalResults = phdp_globals.test_data['EmsCalResults']
+
+        signals = [
+            'conRawCO2_Avg_%vol', 'conRawHCO_Avg_ppm', 'conRawNOX_Avg_ppm', 'conRawTHC_Avg_ppmC',
+            'conRawCH4cutter_Avg_ppmC', 'conRawO2_Avg_%vol', 'conRawNH3_Avg_ppm',
+            'conCO2_Avg_%vol', 'conLCO_Avg_ppm', 'conNOX_Avg_ppm', 'conTHC_Avg_ppmC', 'conCH4cutter_Avg_ppmC',
+            'conEGRCO2_Avg_%vol', 'conN2O_Avg_ppm',
+        ]
+
+        for signal in signals:
+            component, driftline, scale_factor = handle_emscal_driftline(signal)
+            emscal_data = (
+                EmsCalResults)[
+                (EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline)]
+
+            if not emscal_data.empty:
+                signal_prefix = signal.rsplit('_')[0]
+                set_value_at(report_df, signal_prefix, emscal_data['DriftZero2Range_ppm'] / scale_factor, col_offset=2)  # Range
+                set_value_at(report_df, signal_prefix, emscal_data['DriftSpanValue_ppm'] / scale_factor, col_offset=3)  # Span
+                five_pct_over = emscal_data['DriftSpanValue_ppm'].item() / scale_factor * 1.05
+                set_value_at(report_df, signal_prefix, [five_pct_over], col_offset=4)  # 5% over
+
+                set_average_min_max(report_df, dctad, signal_prefix, signal, col_offset=5)
+                pass_fail = dctad[signal].max() < five_pct_over
+                set_value_at(report_df, signal_prefix, pass_fail_range(pass_fail, [True, True]), col_offset=8)
+
+        # CVS tunnel data
+        set_average_min_max(report_df, dctad, 'CVS Molar Flow', 'CVSMolarFlow_Avg_mol/s', col_offset=2)
+        set_average_min_max(report_df, dctad, 'CVS Volume Flow', 'CVSMolarFlow_Avg_mol/s', col_offset=2, scale=0.024055)
+
+        set_average_min_max(report_df, dctad, 'CVSDilAirTemp', 'CVSDilAirTemp_Avg_°C', col_offset=2)
+        pass_fail = (dctad['CVSDilAirTemp_Avg_°C'].min() >= 20 and
+                     dctad['CVSDilAirTemp_Avg_°C'].max() <= 30)
+        set_value_at(report_df, 'CVSDilAirTemp', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_average_min_max(report_df, dctad, 'CVSDilExhTemp', 'CVSDilExhTemp_Avg_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'CVSDilAirDPTemp', 'CVSDilAirDPTemp_Avg_°C', col_offset=2)
+        if 'CVSDilAirRH_Avg_%' in dctad:
+            set_average_min_max(report_df, dctad, 'CVSDilAirRH', 'CVSDilAirRH_Avg_%', col_offset=2)
+
+        set_average_min_max(report_df, dctad, 'CVS Pressure at Exh Entry', 'pTailpipe_Avg_kPa', col_offset=2)
+        pass_fail = (dctad['pTailpipe_Avg_kPa'].min() >= -1.2 and
+                     dctad['pTailpipe_Avg_kPa'].max() <= 1.2)
+        set_value_at(report_df, 'CVS Pressure at Exh Entry', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)', dctadsummary['BagFillProportionality'], col_offset=2)
+        set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
+                     pass_fail_range(dctadsummary['BagFillProportionality'].item(), [0, 3.5]), col_offset=7)
 
         with pd.ExcelWriter(
                 report_filename,

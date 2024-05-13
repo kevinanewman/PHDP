@@ -455,6 +455,48 @@ def pass_fail_range(value, allowed_range):
         return 'FAIL'
 
 
+def handle_emscal_driftline(signal_name):
+    """
+    Get driftline and component name from signal, to look up values in EmsCaResults
+
+    Args:
+        signal_name (str): signal name, suchas 'conRawCO2_Avg_%vol'
+
+    Returns:
+        EmsCal component name, driftline and scale_factor
+
+    """
+    rename = {
+        'LCO': 'COL',
+        'HCO': 'COH',
+        'CH4cutter': 'CH4'
+    }
+
+    signal, signal_type, unit = signal_name.split('_')
+
+    if signal.startswith('conRaw'):
+        component = signal.replace('conRaw', '')
+        driftline = 'DIRECT'
+        if component == 'NH3':
+            driftline = 'HOT'
+    elif signal.startswith('conEGRCO2'):
+        component = 'CO2'
+        driftline = 'EGR'
+    else:
+        component = signal.replace('con', '')
+        driftline = 'DILUTE'
+
+    if component in rename:
+        component = rename[component]
+
+    if unit == '%vol':
+        scale_factor = 10 ** 4
+    else:
+        scale_factor = 1
+
+    return component, driftline, scale_factor
+
+
 if __name__ == '__main__':
     try:
         pass

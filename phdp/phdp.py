@@ -768,30 +768,9 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
         Nothing, updates dataframe with drift corrected signal.
 
     """
-    rename = {
-        'LCO': 'COL',
-        'HCO': 'COH',
-        'CH4cutter': 'CH4'
-    }
-
     xrefzero = 0
 
-    signal, signal_type, unit = signal_name.split('_')
-
-    if signal.startswith('conRaw'):
-        component = signal.replace('conRaw', '')
-        driftline = 'DIRECT'
-        if component == 'NH3':
-            driftline = 'HOT'
-    elif signal.startswith('conEGRCO2'):
-        component = 'CO2'
-        driftline = 'EGR'
-    else:
-        component = signal.replace('con', '')
-        driftline = 'DILUTE'
-
-    if component in rename:
-        component = rename[component]
+    component, driftline, scale_factor = handle_emscal_driftline(signal_name)
 
     EmsCalResults = phdp_globals.test_data['EmsCalResults']
     xpre_data = (
@@ -808,11 +787,6 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
 
         xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
         xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
-
-        if unit == '%vol':
-            scale_factor = 10 ** 4
-        else:
-            scale_factor = 1
 
         time_aligned_data[signal_name] = xrefzero + (xrefspan - xrefzero) * (
                 2 * time_aligned_data[signal_name] * scale_factor - (xprezero + xpostzero)) / (
@@ -1922,8 +1896,9 @@ def run_phdp(runtime_options):
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
 
                             if calc_mode != 'dilute-bag':
-                                proportionality_check(time_aligned_data['CVSFlow_mol/s'],
-                                                      time_aligned_data['BagFillFlow_Avg_mol/s'])
+                                _, drift_corrected_time_aligned_data_summary['BagFillProportionality'] = (
+                                    proportionality_check(time_aligned_data['CVSFlow_mol/s'],
+                                                          time_aligned_data['BagFillFlow_Avg_mol/s']))
 
                             drift_corrected_time_aligned_data_summary['EmissionsCycleNumber_Integer'] = (
                                 emissions_cycle_number)
