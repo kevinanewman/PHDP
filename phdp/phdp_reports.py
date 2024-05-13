@@ -665,7 +665,7 @@ def generate_general_report(report_filename, results, dilute_dctad, test_type, t
         set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_°C', col_offset=2)
         # set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', '?', col_offset=2)
         set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_°C', col_offset=2)
-        # set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', '', col_offset=2)
+        set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 
         set_value_at(report_df, 'FuelType', phdp_globals.test_data['EngineData']['FuelTypeName'], col_offset=2)
         set_value_at(report_df, 'Fuel H/C Ratio',
@@ -674,8 +674,6 @@ def generate_general_report(report_filename, results, dilute_dctad, test_type, t
                      phdp_globals.test_data['EngineData']['FuelOTCRAT_ratio'], col_offset=2)
         set_value_at(report_df, 'Fuel Low Heating Value',
                      phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
-
-        set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 
         with pd.ExcelWriter(
                 report_filename,
