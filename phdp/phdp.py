@@ -31,6 +31,8 @@ pre_test_pm_measurement_mg = None
 post_test_pm_measurement_mg = None
 pm_mass_mg = None
 
+dilute_dctad = []
+
 def init_phdp(runtime_options):
     """
     Initialize PHDP
@@ -1813,7 +1815,7 @@ def run_phdp(runtime_options):
 
             if emissions_available:  # replace with test for whether emissions are available
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
-                    calc_modes = ['raw', 'dilute', 'dilute-bag']
+                    calc_modes = ['dilute', 'raw', 'dilute-bag']  # NOTE: 'dilute' mode must be first for reports
                 else:
                     calc_modes = ['dilute', 'dilute-bag']
 
@@ -1941,6 +1943,10 @@ def run_phdp(runtime_options):
 
                         results['tad'].append(time_aligned_data)
                         results['dctad'].append(drift_corrected_time_aligned_data)
+
+                        if calc_mode == 'dilute':
+                            dilute_dctad.append(drift_corrected_time_aligned_data)
+
                         results['tadsummary'].append(time_aligned_data_summary)
                         results['dctadsummary'].append(drift_corrected_time_aligned_data_summary)
                         results['1036_calculations'].append(calculations_1036)
@@ -1988,7 +1994,8 @@ def run_phdp(runtime_options):
                                                                 test_type, test_num, test_site)
 
                     generate_driftcheck_report(report_filename, results, test_type, test_name)
-                    generate_general_report(report_filename, results, test_type, test_datetime, test_site)
+                    generate_general_report(report_filename, results, dilute_dctad,
+                                            test_type, test_datetime, test_site)
 
                     print('done!')
 

@@ -75,10 +75,10 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         set_value_at(report_df, 'Original Net Mass', original_net_mass)
         set_value_at(report_df, 'Corrected Net Mass', corrected_net_mass)
 
-        if calc_mode == 'dilute':
-            net_mass_drift_check_pct = ((original_net_mass - corrected_net_mass) /
-                                        np.maximum(original_net_mass, sys.float_info.epsilon) * 100)
-            set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
+        # if calc_mode == 'dilute':
+        #     net_mass_drift_check_pct = ((original_net_mass - corrected_net_mass) /
+        #                                 np.maximum(original_net_mass, sys.float_info.epsilon) * 100)
+        #     set_value_at(report_df, 'Net Mass Drift Check %', net_mass_drift_check_pct)
 
         cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
 
@@ -102,6 +102,27 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
         set_value_at(report_df, 'Original Brake Specific Emissions', original_brake_specific_emissions)
         set_value_at(report_df, 'Corrected Brake Specific Emissions', corrected_brake_specific_emissions)
         set_value_at(report_df, 'Brake Specific Emissions Drift Check %', brake_specific_emissions_drift_check_pct)
+
+        # 1065 Drift Check Pass/Fails
+        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[0], [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=3)  # CO2
+
+        co_value = min(brake_specific_emissions_drift_check_pct[1],
+                       ((original_brake_specific_emissions[1] - corrected_brake_specific_emissions[1]))/3.5 * 100)
+        pass_fail = pass_fail_range(co_value, [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=4)  # CO
+
+        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[2], [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=5)  # NOx
+
+        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[3], [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=6)  # HC
+
+        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[6], [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=9)  # NMHC
+
+        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[7], [-4, 4])
+        set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=10)  # NMHC+NOx
 
         set_value_at(report_df, 'ϵrC', results['1036_calculations'][i]['erC_rel_err_%'])
         set_value_at(report_df, 'ϵaC', results['1036_calculations'][i]['eaC_g'])
@@ -577,7 +598,13 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
                                sheet_name='Drift Check %d' % emissions_cycle_number)
 
 
-def generate_general_report(report_filename, results, test_type, test_datetime, test_site):
+def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, scale=1):
+    set_value_at(report_df, value_name, [dctad[signal_name].mean() * scale], col_offset=col_offset)
+    set_value_at(report_df, value_name, [dctad[signal_name].min() * scale], col_offset=col_offset+1)
+    set_value_at(report_df, value_name, [dctad[signal_name].max() * scale], col_offset=col_offset+2)
+
+
+def generate_general_report(report_filename, results, dilute_dctad, test_type, test_datetime, test_site):
     """
 
     Args:
@@ -608,7 +635,47 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
         set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
 
         # drift corrected time-aligned data
-        # dctad = results['dctad']
+        dctad = dilute_dctad[emissions_cycle_number-1]
+
+        set_average_min_max(report_df, dctad, 'Barometric Pressure', 'pCellAmbient_Avg_kPa', col_offset=2)
+        pass_fail = (dctad['pCellAmbient_Avg_kPa'].min() >= 92.68 and
+                     dctad['pCellAmbient_Avg_kPa'].max() <= 102.68)
+        set_value_at(report_df, 'Barometric Pressure', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_average_min_max(report_df, dctad, 'Intake Air Temperature', 'tIntakeAir_Avg_°C', col_offset=2)
+        pass_fail = (dctad['tIntakeAir_Avg_°C'].min() >= 20 and
+                     dctad['tIntakeAir_Avg_°C'].max() <= 30)
+        set_value_at(report_df, 'Intake Air Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_average_min_max(report_df, dctad, 'Intake Air Pressure', 'IntakeAirPress_Avg_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Intake Air Dew Point', 'tCellDewPt_Avg_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Flow', 'qmFuel_Avg_g/h', col_offset=2, scale=1/1000)
+        set_average_min_max(report_df, dctad, 'Intake Air Flow', 'qmIntakeAir_Avg_kg/h', col_offset=2)
+        set_average_min_max(report_df, dctad, 'DEF Flow', 'DEFMassFlowRate_Avg_g/h', col_offset=2, scale=1/1000)
+        set_average_min_max(report_df, dctad, 'Exhaust Back-pressure', 'ExhaustBackPressure_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Pump Inlet Temperature', 'tFuel_Avg_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Pump Supply Pressure', 'pFuelSupply_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Pump Return Pressure', 'pFuelReturn_kPa', col_offset=2)
+
+        set_average_min_max(report_df, dctad, 'CA Coolant Temperature', 'tCoolantCA_°C', col_offset=2)
+        pass_fail = (dctad['tCoolantCA_°C'].min() >= 20 and
+                     dctad['tCoolantCA_°C'].max() <= 30)
+        set_value_at(report_df, 'CA Coolant Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+        set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_°C', col_offset=2)
+        # set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', '?', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_°C', col_offset=2)
+        # set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', '', col_offset=2)
+
+        set_value_at(report_df, 'FuelType', phdp_globals.test_data['EngineData']['FuelTypeName'], col_offset=2)
+        set_value_at(report_df, 'Fuel H/C Ratio',
+                     phdp_globals.test_data['EngineData']['FuelHTCRAT_ratio'], col_offset=2)
+        set_value_at(report_df, 'Fuel O/C Ratio',
+                     phdp_globals.test_data['EngineData']['FuelOTCRAT_ratio'], col_offset=2)
+        set_value_at(report_df, 'Fuel Low Heating Value',
+                     phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
+
+        set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 
         with pd.ExcelWriter(
                 report_filename,

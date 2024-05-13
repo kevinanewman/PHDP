@@ -21,7 +21,6 @@ Test Results,Emission Component,,CO2,CO,NOx,HC,CH4,N2O,NMHC,NMHC+NOx
 ,,,g,g,g,g,g,g,g,g
 ,,Original Net Mass,,,,,,,,
 ,,Corrected Net Mass,,,,,,,,
-,,Net Mass Drift Check %,,,,,,,,
 ,,,,,,,,,,
 ,,,,,,,,,,
 Total PM Mass,,mg,,,,,,,,
@@ -36,6 +35,7 @@ Brake Specific Emissions,Emission Component,,CO2,CO,NOx,HC,CH4,N2O,NMHC,NMHC+NOx
 ,,Original Brake Specific Emissions,,,,,,,,
 ,,Corrected Brake Specific Emissions,,,,,,,,
 ,,Brake Specific Emissions Drift Check %,,,,,,,,
+1065 Drift Check,,,,,,,,,,
 ,,,,,,,,,,
 Carbon Balance Error Checks,,,Limit,Check,,,,,,
 Relative Error (%),ϵrC,,±2.0,,,,,,,
