@@ -604,7 +604,7 @@ def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, s
     set_value_at(report_df, value_name, [dctad[signal_name].max() * scale], col_offset=col_offset+2)
 
 
-def generate_general_report(report_filename, results, dilute_dctad, test_type, test_datetime, test_site):
+def generate_general_report(report_filename, results, test_type, test_datetime, test_site):
     """
 
     Args:
@@ -635,7 +635,7 @@ def generate_general_report(report_filename, results, dilute_dctad, test_type, t
         set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
 
         # drift corrected time-aligned data
-        dctad = dilute_dctad[emissions_cycle_number-1]
+        dctad = results['dctad'][emissions_cycle_number-1]
 
         set_average_min_max(report_df, dctad, 'Barometric Pressure', 'pCellAmbient_Avg_kPa', col_offset=2)
         pass_fail = (dctad['pCellAmbient_Avg_kPa'].min() >= 92.68 and
