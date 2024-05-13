@@ -8,6 +8,7 @@ path = os.path.dirname(os.path.abspath(__file__))
 
 from phdp import *
 from common.file_io import file_exists
+from constants import constants
 
 initial_report = True
 
@@ -599,16 +600,21 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
 
 
 def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, scale=1):
-    set_value_at(report_df, value_name, [dctad[signal_name].mean() * scale], col_offset=col_offset)
-    set_value_at(report_df, value_name, [dctad[signal_name].min() * scale], col_offset=col_offset+1)
-    set_value_at(report_df, value_name, [dctad[signal_name].max() * scale], col_offset=col_offset+2)
+    if signal_name in dctad:
+        set_value_at(report_df, value_name, [dctad[signal_name].mean() * scale], col_offset=col_offset)
+        set_value_at(report_df, value_name, [dctad[signal_name].min() * scale], col_offset=col_offset+1)
+        set_value_at(report_df, value_name, [dctad[signal_name].max() * scale], col_offset=col_offset+2)
 
+        return True
+    else:
+        return False
 
-def generate_general_report(report_filename, results, test_type, test_datetime, test_site):
+def generate_general_report(report_filename, calc_mode, results, test_type, test_datetime, test_site):
     """
 
     Args:
         report_filename (str): the Excel report filename, a new sheet will be added
+        calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         results (dict): a dictionary containing the results of the emissions calculations.
         test_type (str): test type, i.e. 'transient' or 'modal'
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
@@ -658,10 +664,10 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
         set_average_min_max(report_df, dctad, 'Fuel Pump Supply Pressure', 'pFuelSupply_kPa', col_offset=2)
         set_average_min_max(report_df, dctad, 'Fuel Pump Return Pressure', 'pFuelReturn_kPa', col_offset=2)
 
-        set_average_min_max(report_df, dctad, 'CA Coolant Temperature', 'tCoolantCA_°C', col_offset=2)
-        pass_fail = (dctad['tCoolantCA_°C'].min() >= 20 and
-                     dctad['tCoolantCA_°C'].max() <= 30)
-        set_value_at(report_df, 'CA Coolant Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+        if set_average_min_max(report_df, dctad, 'CA Coolant Temperature', 'tCoolantCA_°C', col_offset=2):
+            pass_fail = (dctad['tCoolantCA_°C'].min() >= 20 and
+                         dctad['tCoolantCA_°C'].max() <= 30)
+            set_value_at(report_df, 'CA Coolant Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
         set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_°C', col_offset=2)
         # set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', '?', col_offset=2)
@@ -677,6 +683,7 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
                      phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
 
         # Emissions data
+
         EmsCalResults = phdp_globals.test_data['EmsCalResults']
 
         signals = [
@@ -699,9 +706,9 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
                 five_pct_over = emscal_data['DriftSpanValue_ppm'].item() / scale_factor * 1.05
                 set_value_at(report_df, signal_prefix, [five_pct_over], col_offset=4)  # 5% over
 
-                set_average_min_max(report_df, dctad, signal_prefix, signal, col_offset=5)
-                pass_fail = dctad[signal].max() < five_pct_over
-                set_value_at(report_df, signal_prefix, pass_fail_range(pass_fail, [True, True]), col_offset=8)
+                if set_average_min_max(report_df, dctad, signal_prefix, signal, col_offset=5):
+                    pass_fail = dctad[signal].max() < five_pct_over
+                    set_value_at(report_df, signal_prefix, pass_fail_range(pass_fail, [True, True]), col_offset=8)
 
         # CVS tunnel data
         set_average_min_max(report_df, dctad, 'CVS Molar Flow', 'CVSMolarFlow_Avg_mol/s', col_offset=2)
@@ -717,14 +724,41 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
         if 'CVSDilAirRH_Avg_%' in dctad:
             set_average_min_max(report_df, dctad, 'CVSDilAirRH', 'CVSDilAirRH_Avg_%', col_offset=2)
 
-        set_average_min_max(report_df, dctad, 'CVS Pressure at Exh Entry', 'pTailpipe_Avg_kPa', col_offset=2)
-        pass_fail = (dctad['pTailpipe_Avg_kPa'].min() >= -1.2 and
-                     dctad['pTailpipe_Avg_kPa'].max() <= 1.2)
-        set_value_at(report_df, 'CVS Pressure at Exh Entry', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+        if set_average_min_max(report_df, dctad, 'CVS Pressure at Exh Entry', 'pTailpipe_Avg_kPa', col_offset=2):
+            pass_fail = (dctad['pTailpipe_Avg_kPa'].min() >= -1.2 and
+                         dctad['pTailpipe_Avg_kPa'].max() <= 1.2)
+            set_value_at(report_df, 'CVS Pressure at Exh Entry', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
-        set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)', dctadsummary['BagFillProportionality'], col_offset=2)
-        set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
-                     pass_fail_range(dctadsummary['BagFillProportionality'].item(), [0, 3.5]), col_offset=7)
+        if 'BagFillProportionality' in dctadsummary:
+            set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)', dctadsummary['BagFillProportionality'], col_offset=2)
+            set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
+                         pass_fail_range(dctadsummary['BagFillProportionality'].item(), [0, 3.5]), col_offset=7)
+
+        if phdp_globals.test_data['CVSDLSSampleResults'] is not None:
+            skip_secs = 5
+            cvs_dlsresults = phdp_globals.test_data['CVSDLSSampleResults'].iloc[
+                             int(skip_secs / constants['SamplePeriod_s']):]
+            set_average_min_max(report_df, cvs_dlsresults, 'PM Filter Face Velocity', 'FilterFaceVelocity_cm/s',
+                                col_offset=2, scale=1/100)
+            pass_fail = (cvs_dlsresults['FilterFaceVelocity_cm/s'].min() / 100 >= 0.35 and
+                         cvs_dlsresults['FilterFaceVelocity_cm/s'].max() / 100 <= 1)
+            set_value_at(report_df, 'PM Filter Face Velocity', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+            set_average_min_max(report_df, cvs_dlsresults, 'CVS Tunnel Residence Time', 'CVSResidenceTime_s',
+                                col_offset=2)
+            set_average_min_max(report_df, cvs_dlsresults, 'PM Probe Residence Time', 'ProbeResidenceTime_s',
+                                col_offset=2)
+
+            set_average_min_max(report_df, cvs_dlsresults, 'PM Tunnel Residence Time', 'ResidenceTime_s',
+                                col_offset=2)
+            pass_fail = cvs_dlsresults['ResidenceTime_s'].min() >= 0.5
+            set_value_at(report_df, 'PM Tunnel Residence Time', pass_fail_range(pass_fail, [True, True]), col_offset=7)
+
+            set_average_min_max(report_df, cvs_dlsresults, 'Overall Residence Time', 'TotalResidenceTime_s',
+                                col_offset=2)
+            pass_fail = (cvs_dlsresults['TotalResidenceTime_s'].min() >= 1 and
+                         cvs_dlsresults['TotalResidenceTime_s'].max() <= 5.5)
+            set_value_at(report_df, 'Overall Residence Time', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
         with pd.ExcelWriter(
                 report_filename,
@@ -732,4 +766,5 @@ def generate_general_report(report_filename, results, test_type, test_datetime, 
                 engine="openpyxl",
                 if_sheet_exists="replace",
         ) as writer:
-            report_df.to_excel(writer, index=False, header=False, sheet_name='General %d' % emissions_cycle_number)
+            report_df.to_excel(writer, index=False, header=False,
+                               sheet_name='%s General %d' % (calc_mode, emissions_cycle_number))
