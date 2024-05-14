@@ -727,12 +727,9 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
         if 'CVSDilAirRH_Avg_%' in dctad:
             set_average_min_max(report_df, dctad, 'CVSDilAirRH', 'CVSDilAirRH_Avg_%', col_offset=2)
 
-        # specific_humidity_from_dewpoint(98.44 * units.kPa, 12.11 * units.degC).to('g/kg').magnitude
-
         dctad['cvs_dilution_air_humidity'] = \
             specific_humidity_from_dewpoint(dctad['pCellAmbient_Avg_kPa'].values * units.kPa,
                                             dctad['tCellDewPt_Avg_°C'].values * units.degC).to('g/kg').magnitude
-
         set_average_min_max(report_df, dctad, 'CVS Dilution Air Humidity', 'cvs_dilution_air_humidity', col_offset=2)
 
         if set_average_min_max(report_df, dctad, 'CVS Pressure at Exh Entry', 'pTailpipe_Avg_kPa', col_offset=2):
