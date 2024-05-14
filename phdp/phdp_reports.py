@@ -612,6 +612,7 @@ def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, s
     else:
         return False
 
+
 def generate_general_report(report_filename, calc_mode, results, test_type, test_datetime, test_site):
     """
 

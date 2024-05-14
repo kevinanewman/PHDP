@@ -1965,7 +1965,10 @@ def run_phdp(runtime_options):
                                                                 test_type, test_num, test_site)
 
                     generate_driftcheck_report(report_filename, results, test_type, test_name)
-                    generate_general_report(report_filename, calc_mode, results, test_type, test_datetime, test_site)
+
+                    if calc_mode == 'dilute':
+                        generate_general_report(report_filename, calc_mode, results,
+                                                test_type, test_datetime, test_site)
 
                     print('done!')
 
