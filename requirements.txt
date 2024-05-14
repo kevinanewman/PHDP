@@ -13,3 +13,5 @@ matplotlib
 pandas
 scipy
 openpyxl
+
+metpy
