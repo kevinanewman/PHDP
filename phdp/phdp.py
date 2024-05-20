@@ -114,9 +114,10 @@ def load_data(test_site):
     required_file_names = ['BagData', 'BagDriftCheck', 'ContinuousData', 'CycleDefinition', 'CycleDefinition',
                            'DriftCheck', 'EmsCalResults', 'EmsComponents', 'EngineData', 'Header', 'MapResults',
                            'ModalTestData', 'ModeValidationResults', 'TestDetails', 'TestParameters',
-                           'drift_corrected_BagData', 'Workstation']
+                           'drift_corrected_BagData', 'Workstation', 'PreTest', 'CFR1065EMS', 'CFR1065CVS',
+                           'CFR1065PM']
 
-    optional_file_names = ['CVSDLSFlows', 'CVSDLSSampleResults']
+    optional_file_names = ['CVSDLSFlows', 'CVSDLSSampleResults', 'CFR1065PM']
 
     required_file_names.extend(optional_file_names)  # add optional files
 
@@ -1787,7 +1788,7 @@ def run_phdp(runtime_options):
 
             emissions_available = phdp_globals.test_data['BagData']['RbSpanValue_ppm'].max() > 0
 
-            if emissions_available:  # replace with test for whether emissions are available
+            if emissions_available:
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                     calc_modes = ['dilute', 'raw', 'dilute-bag']  # NOTE: 'dilute' mode must be first for reports
                 else:
@@ -1970,7 +1971,9 @@ def run_phdp(runtime_options):
                         generate_general_report(report_filename, calc_mode, results,
                                                 test_type, test_datetime, test_site)
 
-                    print('done!')
+                generate_pre_test_check_report(report_filename)
+
+                print('done!')
 
                 return results
             else:
