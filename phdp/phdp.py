@@ -1600,11 +1600,11 @@ def proportionality_check(ref, meas, skip_secs=5):
     from statistics import linear_regression
 
     ref_skip = \
-        ref.iloc[int(skip_secs / constants['SamplePeriod_s']):]
+        ref.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
     meas_skip = \
-        meas.iloc[int(skip_secs / constants['SamplePeriod_s']):]
+        meas.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
 
-    samples_per_second = int(1 / constants['SamplePeriod_s'])
+    samples_per_second = int(1 / constants['MeasurementPeriod_s'])
     sample_length_1Hz = int(len(ref_skip) / samples_per_second) * samples_per_second
 
     # truncate data to an even multiple of the 1Hz sample period
@@ -1790,8 +1790,12 @@ def run_phdp(runtime_options):
             else:
                 modes = None
 
-            test_valid = validate_data(test_name, test_type, horiba_filename.rsplit('.', 1)[0], emissions_cycles,
-                                       modes, do_plots=False)
+            constants['MeasurementPeriod_s'] = (
+                phdp_globals.test_data['TestParameters']['ContinuousLoggerPeriod_s'].item())
+
+            test_valid, best_validation_results = (
+                validate_data(test_name, test_type, horiba_filename.rsplit('.', 1)[0], emissions_cycles, modes,
+                              do_plots=False))
 
             if test_type == 'modal':
                 emissions_cycles = modes
@@ -1824,7 +1828,7 @@ def run_phdp(runtime_options):
                             emissions_cycle_number = ecn
                             time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
                                                                            emissions_cycle_number, min_mode_number)
-                        else:
+                        else:  # modal test
                             from test_sites import site_info
 
                             test_sites.init_site_info(test_site, test_type)
@@ -1854,8 +1858,7 @@ def run_phdp(runtime_options):
 
                             continuous_data = phdp_globals.test_data['ContinuousData'].loc[mode_pts]
 
-                            constants['SamplePeriod_s'] = (
-                                    continuous_data['time_s'].iloc[-1] - continuous_data['time_s'].iloc[0])
+                            constants['SamplePeriod_s'] = len(continuous_data) * constants['MeasurementPeriod_s']
 
                             time_aligned_data['elapsed_time_s'] = constants['SamplePeriod_s']
 
