@@ -1255,7 +1255,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
     best_validation = {'lowest_fail_count': [math.inf] * len(emissions_cycles),
                        'description': [''] * len(emissions_cycles),
-                       'validation_data': [None] * len(emissions_cycles)}
+                       'validation_data': [None] * len(emissions_cycles),
+                       'regression_results': [None] * len(emissions_cycles)}
 
     continuous_data = phdp_globals.test_data['ContinuousData'].copy()
 
@@ -1533,15 +1534,26 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
                     regression_results['%d-%.1f-%s' % (ecn, time_shift, may_omit_str)].update({
                         '%s_Slope' % stp: stats['slope'],
+                        '%s_Slope_limit_min' % stp: limits[stp]['slope'][0],
+                        '%s_Slope_limit_max' % stp: limits[stp]['slope'][1],
                         '%s_SlopeOK' % stp: pass_fail_range(stats['slope'], limits[stp]['slope']) == 'pass',
-                        '%s_Intercept_Nm' % stp: stats['intercept'],
+                        '%s_Intercept' % stp: stats['intercept'],
+                        '%s_Intercept_limit_min' % stp: limits[stp]['intercept'][0],
+                        '%s_Intercept_limit_max' % stp: limits[stp]['intercept'][1],
                         '%s_InterceptOK' % stp: pass_fail_range(stats['intercept'], limits[stp]['intercept']) == 'pass',
                         '%s_Rsq' % stp: stats['R2'],
+                        '%s_Rsq_limit_min' % stp: limits[stp]['R2'][0],
+                        '%s_Rsq_limit_max' % stp: limits[stp]['R2'][1],
                         '%s_RsqOK' % stp: pass_fail_range(stats['R2'], limits[stp]['R2']) == 'pass',
                         '%s_StdErr' % stp: stats['SEE'],
+                        '%s_StdErr_limit_min' % stp: limits[stp]['SEE'][0],
+                        '%s_StdErr_limit_max' % stp: limits[stp]['SEE'][1],
                         '%s_StdErrOK' % stp: pass_fail_range(stats['SEE'], limits[stp]['SEE']) == 'pass',
                         '%s_Points' % stp: len(meas),
-                        'CheckFailCount': fail_count,
+                        '%s_CheckFailCount' % stp: fail_count,
+                        'time_shift': time_shift,
+                        'Emissions Cycle Number': ecn,
+                        'descriptor': '%d-%.1f-%s' % (ecn, time_shift, may_omit_str),
                     })
 
                 if not cycle_valid[ecn-1]:
@@ -1554,6 +1566,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                     best_validation['lowest_fail_count'][ecn-1] = fail_count
                     best_validation['description'][ecn-1] = '%d-%.1f-%s' % (ecn, time_shift, may_omit_str)
                     best_validation['validation_data'][ecn-1] = validation_data
+                    best_validation['regression_results'][ecn-1] = regression_results['%d-%.1f-%s' %
+                                                                                      (ecn, time_shift, may_omit_str)]
 
         df = pd.DataFrame(regression_results).transpose()
         df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
@@ -1567,7 +1581,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
     print('CYCLE VALID = %s' % all(cycle_valid))
 
-    return all(cycle_valid)
+    return all(cycle_valid), best_validation
 
 
 def proportionality_check(ref, meas, skip_secs=5):
@@ -1970,6 +1984,8 @@ def run_phdp(runtime_options):
                     if calc_mode == 'dilute':
                         generate_general_report(report_filename, calc_mode, results,
                                                 test_type, test_datetime, test_site)
+
+                        generate_cycle_validation_report(report_filename, best_validation_results)
 
                 generate_pre_test_check_report(report_filename)
 

@@ -973,3 +973,61 @@ def CFR1065EMS_checks(report_df, row_name, row_select, value_name):
     set_value_at(report_df, row_name, pass_fail_range(value, [-0.5, 0.5]), col_offset=3)
 
     CFR1065_datetimes(report_df, cfr1065ems, row_name, row_select)
+
+
+def generate_cycle_validation_report(report_filename, best_validation_results):
+    """
+    Generate cycle validation report
+
+    Args:
+        report_df (DataFrame): the report template dataframe
+        best_validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
+
+    """
+    report_df = pd.read_csv(path + os.sep + 'cycle_validation_report_template.csv', encoding='UTF-8', header=None)
+    report_df = report_df.fillna('')
+
+    pass_fail_dict = {True: 'pass', False: 'FAIL'}
+
+    for i in range(len(best_validation_results['regression_results'])):
+        validation_results = best_validation_results['regression_results'][i]
+        ecn = validation_results['Emissions Cycle Number']
+
+        set_value_at(report_df, 'Cycle Validation', validation_results['descriptor'])
+        set_value_at(report_df, 'Shift', validation_results['time_shift'])
+
+        for validation_prefix, validation_name in (
+                zip(['speed_rpm', 'torque_Nm', 'power_kW'], ['Speed', 'Torque', 'Power'])):
+            for check_name, check_description in zip(
+                    ['StdErr', 'Slope', 'Rsq', 'Intercept'],
+                    ['Standard Error (SEE)', 'Slope (m)', 'R2', 'Intercept (b)']):
+                row_name = '%s %s' % (validation_name, check_description)
+                set_value_at(report_df, row_name,
+                             [validation_results['%s_%s' % (validation_prefix, check_name)]])
+                set_value_at(report_df, row_name,
+                             [validation_results['%s_%s_limit_min' % (validation_prefix, check_name)]], col_offset=2)
+                set_value_at(report_df, row_name,
+                             [validation_results['%s_%s_limit_max' % (validation_prefix, check_name)]], col_offset=3)
+                set_value_at(report_df, row_name,
+                             pass_fail_dict[validation_results['%s_%sOK' % (validation_prefix, check_name)]], col_offset=5)
+            for check_name, check_description in zip(
+                    ['Points'], ['Records Used for Analysis (#)']):
+                row_name = '%s %s' % (validation_name, check_description)
+                set_value_at(report_df, row_name,
+                             int(validation_results['%s_%s' % (validation_prefix, check_name)]))
+
+            for check_name, check_description in zip(
+                    ['CheckFailCount'], ['Validation']):
+                row_name = '%s %s' % (validation_name, check_description)
+                set_value_at(report_df, row_name,
+                             pass_fail_dict[validation_results['%s_%s' % (validation_prefix, check_name)] == 0])
+
+
+        with pd.ExcelWriter(
+                report_filename,
+                mode="a",
+                engine="openpyxl",
+                if_sheet_exists="replace",
+        ) as writer:
+            report_df.to_excel(writer, index=False, header=False,
+                               sheet_name='Cycle Validation %d' % ecn)
