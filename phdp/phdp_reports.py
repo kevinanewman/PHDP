@@ -804,12 +804,75 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
                                sheet_name='%s General %d' % (calc_mode, emissions_cycle_number))
 
 
-def generate_pre_test_check_report(report_filename):
+def CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, value_name):
+    """
+    Update pre test check template CFR1065EMS-related values and perform pass/fail checks
+
+    Args:
+        report_df (DataFrame): the report template dataframe
+        test_datetime (str): the date and time of the test in YYYMMDDhhmm format
+        row_name (str): name of the row from the report template
+        row_select (Series): a Boolean vector that selects a row from ``cfrdata``
+        value_name (str): the column name of the target value , e.g. 'Hangup_ppmC'
+
+    Returns:
+        Nothing, updates values in ``report_df``
+
+    """
+    cfr1065ems = phdp_globals.test_data['CFR1065EMS']
+
+    if any(row_select):
+        value = cfr1065ems[value_name].loc[row_select].item()
+        set_value_at(report_df, row_name, [value], col_offset=2)
+        set_value_at(report_df, row_name, pass_fail_range(value, [-0.5, 0.5]), col_offset=3)
+
+        CFR1065_datetimes(report_df, test_datetime, cfr1065ems, row_name, row_select)
+
+
+def CFR1065_datetimes(report_df, test_datetime, cfrdata, row_name, row_select):
+    """
+    Handle date/time and elapsed time values in the pre test check report
+
+    Args:
+        report_df (DataFrame): the report template dataframe
+        test_datetime (str): the date and time of the test in YYYMMDDhhmm format
+        cfrdata (DataFrame): CFR1065XXX data
+        row_name (str): name of the row from the report template
+        row_select (Series): a Boolean vector that selects a row from ``cfrdata``
+
+    Returns:
+        Nothing, updates values in ``report_df``
+
+    """
+    from datetime import datetime, timedelta, timezone
+
+    test_timestamp = phdp_globals.test_data['Header']['Time_Date'].iloc[0] * 24 * 3600
+
+    filename_timestamp = datetime.strptime(test_datetime, '%Y%m%d%H%M').timestamp()
+
+    time_offset = filename_timestamp - test_timestamp
+
+    test_time = cfrdata['Time_Date'].loc[row_select].item() * 24 * 3600 + time_offset
+    check_time = cfrdata['TestTime_Date'].loc[row_select].item() * 24 * 3600 + time_offset
+    elapsed_time_secs = test_time - check_time
+
+    set_value_at(report_df, row_name,
+                 datetime.fromtimestamp(test_time).strftime('%m/%d/%Y %H:%M'), col_offset=5)
+    set_value_at(report_df, row_name,
+                 datetime.fromtimestamp(check_time).strftime('%m/%d/%Y %H:%M'), col_offset=6)
+    set_value_at(report_df, row_name,
+                 str(timedelta(seconds=elapsed_time_secs)).rsplit(':', 1)[0], col_offset=7)
+    set_value_at(report_df, row_name,
+                 pass_fail_range(elapsed_time_secs, [0, 8 * 3600]), col_offset=10)
+
+
+def generate_pre_test_check_report(report_filename, test_datetime):
     """
         Generate pre test check report
 
         Args:
             report_filename (str): the Excel report filename, a new sheet will be added
+            test_datetime (str): the date and time of the test in YYYMMDDhhmm format
 
     """
     report_df = pd.read_csv(path + os.sep + 'pre_test_check_template.csv', encoding='UTF-8', header=None)
@@ -839,37 +902,37 @@ def generate_pre_test_check_report(report_filename):
     check_name = 'LeakRate_%'
     row_select = (cfr1065ems['Line'] == 'DIRECT') & (cfr1065ems['Component'] == 'CO2')
     row_name = 'DIRECT CO2 Cold'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'DIRECT') & (cfr1065ems['Component'] == 'THC') & (cfr1065ems['ColdHot'] == 'Hot')
     row_name = 'DIRECT THC Hot'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'HOT') & (cfr1065ems['Component'] == 'NH3')
     row_name = 'HOT NH3'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'DILUTE') & (cfr1065ems['Component'] == 'CO2')
     row_name = 'DILUTE CO2 Cold'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'DILUTE') & (cfr1065ems['Component'] == 'THC') & (cfr1065ems['ColdHot'] == 'Hot')
     row_name = 'DILUTE THC Hot'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'DILUTE') & (cfr1065ems['Component'] == 'N2O')
     row_name = 'DILUTE N2O Cold'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     # CFR1065EMS HANGUP checks
     check_name = 'Hangup_ppmC'
     row_select = (cfr1065ems['Line'] == 'DILUTE') & (cfr1065ems['Component'] == 'THC') & (cfr1065ems['Check'] == 'HCHangup')
     row_name = 'DILUTE THC'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     row_select = (cfr1065ems['Line'] == 'DIRECT') & (cfr1065ems['Component'] == 'THC') & (cfr1065ems['Check'] == 'HCHangup')
     row_name = 'DIRECT THC'
-    CFR1065EMS_checks(report_df, row_name, row_select, check_name)
+    CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, check_name)
 
     pass_fail_dict = {'Pass': 'pass', 'Fail': 'FAIL'}
 
@@ -880,12 +943,12 @@ def generate_pre_test_check_report(report_filename):
         row_select = cfr1065cvs['Component'] == 'BSU Fill Line'
         row_name = 'BSU Fill Line Leak Check'
         set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
-        CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+        CFR1065_datetimes(report_df, test_datetime, cfr1065cvs, row_name, row_select)
 
         row_select = cfr1065cvs['Component'] == 'BSU Read Line'
         row_name = 'BSU Read Line Leak Check'
         set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
-        CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+        CFR1065_datetimes(report_df, test_datetime, cfr1065cvs, row_name, row_select)
 
         for bagpair in [1, 2, 3]:
             check_name = 'AmbBagHangup_ppmC'
@@ -894,7 +957,7 @@ def generate_pre_test_check_report(report_filename):
             value = cfr1065cvs[check_name].loc[row_select].item()
             set_value_at(report_df, row_name, [value], col_offset=2)
             set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
-            CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+            CFR1065_datetimes(report_df, test_datetime, cfr1065cvs, row_name, row_select)
 
             check_name = 'SampleBagHangup_ppmC'
             row_select = (cfr1065cvs['Check'] == 'HCHangup') & (cfr1065cvs['Component'] == 'THC') & (cfr1065cvs['HCHangupBagPair_Integer'] == bagpair)
@@ -902,7 +965,7 @@ def generate_pre_test_check_report(report_filename):
             value = cfr1065cvs[check_name].loc[row_select].item()
             set_value_at(report_df, row_name, [value], col_offset=2)
             set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
-            CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+            CFR1065_datetimes(report_df, test_datetime, cfr1065cvs, row_name, row_select)
 
     cfr1065pm = phdp_globals.test_data['CFR1065PM']
 
@@ -910,7 +973,7 @@ def generate_pre_test_check_report(report_filename):
         check_name = 'CheckPassFail'
         row_name = 'DLS/PSU Leak Check'
         set_value_at(report_df, row_name, pass_fail_dict[cfr1065pm[check_name].item()], col_offset=3)
-        CFR1065_datetimes(report_df, cfr1065pm, row_name, 0)
+        CFR1065_datetimes(report_df, test_datetime, cfr1065pm, row_name, 0)
 
     with pd.ExcelWriter(
             report_filename,
@@ -922,70 +985,12 @@ def generate_pre_test_check_report(report_filename):
                            sheet_name='PreTestCheck')
 
 
-def CFR1065_datetimes(report_df, cfrdata, row_name, row_select):
-    """
-    Handle date/time and elapsed time values in the pre test check report
-
-    Args:
-        report_df (DataFrame): the report template dataframe
-        cfrdata (DataFrame): CFR1065XXX data
-        row_name (str): name of the row from the report template
-        row_select (Series): a Boolean vector that selects a row from ``cfrdata``
-
-    Returns:
-        Nothing, updates values in ``report_df``
-
-    """
-    from datetime import datetime, timedelta, timezone
-
-    time_offset = datetime(1899, 12, 29, 22, 26, 57,  tzinfo=timezone.utc).timestamp()
-
-    test_time = cfrdata['Time_Date'].loc[row_select].item() * 24 * 3600 + time_offset
-    check_time = cfrdata['TestTime_Date'].loc[row_select].item() * 24 * 3600 + time_offset
-    elapsed_time_secs = test_time - check_time
-
-    set_value_at(report_df, row_name,
-                 datetime.fromtimestamp(test_time).strftime('%m/%d/%Y %H:%M'), col_offset=5)
-    set_value_at(report_df, row_name,
-                 datetime.fromtimestamp(check_time).strftime('%m/%d/%Y %H:%M'), col_offset=6)
-    set_value_at(report_df, row_name,
-                 str(timedelta(seconds=elapsed_time_secs)).rsplit(':', 1)[0], col_offset=7)
-    set_value_at(report_df, row_name,
-                 pass_fail_range(elapsed_time_secs, [0, 8 * 3600]), col_offset=10)
-
-
-def CFR1065EMS_checks(report_df, row_name, row_select, value_name):
-    """
-    Update pre test check template CFR1065EMS-related values and perform pass/fail checks
-
-    Args:
-        report_df (DataFrame): the report template dataframe
-        row_name (str): name of the row from the report template
-        row_select (Series): a Boolean vector that selects a row from ``cfrdata``
-        value_name (str): the column name of the target value , e.g. 'Hangup_ppmC'
-
-    Returns:
-        Nothing, updates values in ``report_df``
-
-    """
-    from datetime import datetime, timedelta
-
-    cfr1065ems = phdp_globals.test_data['CFR1065EMS']
-
-    if any(row_select):
-        value = cfr1065ems[value_name].loc[row_select].item()
-        set_value_at(report_df, row_name, [value], col_offset=2)
-        set_value_at(report_df, row_name, pass_fail_range(value, [-0.5, 0.5]), col_offset=3)
-
-        CFR1065_datetimes(report_df, cfr1065ems, row_name, row_select)
-
-
 def generate_cycle_validation_report(report_filename, validation_results):
     """
     Generate cycle validation report
 
     Args:
-        report_df (DataFrame): the report template dataframe
+        report_filename (str): the Excel report filename, a new sheet will be added
         validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
 
     """
@@ -1026,7 +1031,6 @@ def generate_cycle_validation_report(report_filename, validation_results):
                 row_name = '%s %s' % (validation_name, check_description)
                 set_value_at(report_df, row_name,
                              pass_fail_dict[regression_results['%s_%s' % (validation_prefix, check_name)] == 0])
-
 
         with pd.ExcelWriter(
                 report_filename,

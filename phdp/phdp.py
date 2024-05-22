@@ -2045,7 +2045,7 @@ def run_phdp(runtime_options):
 
                         generate_cycle_validation_report(report_filename, validation_results)
 
-                generate_pre_test_check_report(report_filename)
+                generate_pre_test_check_report(report_filename, test_datetime)
 
                 print('done!')
 
