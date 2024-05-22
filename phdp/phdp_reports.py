@@ -852,7 +852,7 @@ def CFR1065_datetimes(report_df, test_datetime, cfrdata, row_name, row_select):
 
     time_offset = filename_timestamp - test_timestamp
 
-    test_time = cfrdata['Time_Date'].loc[row_select].item() * 24 * 3600 + time_offset
+    test_time = phdp_globals.test_data['Workstation']['Time_Date'].item() * 24 * 3600 + time_offset
     check_time = cfrdata['TestTime_Date'].loc[row_select].item() * 24 * 3600 + time_offset
     elapsed_time_secs = test_time - check_time
 
