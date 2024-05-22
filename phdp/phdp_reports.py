@@ -990,11 +990,11 @@ def generate_cycle_validation_report(report_filename, validation_results):
     pass_fail_dict = {True: 'pass', False: 'FAIL'}
 
     for i in range(len(validation_results['regression_results'])):
-        validation_results = validation_results['regression_results'][i]
-        ecn = validation_results['Emissions Cycle Number']
+        regression_results = validation_results['regression_results'][i]
+        ecn = regression_results['Emissions Cycle Number']
 
-        set_value_at(report_df, 'Cycle Validation', validation_results['descriptor'])
-        set_value_at(report_df, 'Shift', validation_results['time_shift'])
+        set_value_at(report_df, 'Cycle Validation', regression_results['descriptor'])
+        set_value_at(report_df, 'Shift', regression_results['time_shift'])
 
         for validation_prefix, validation_name in (
                 zip(['speed_rpm', 'torque_Nm', 'power_kW'], ['Speed', 'Torque', 'Power'])):
@@ -1003,24 +1003,24 @@ def generate_cycle_validation_report(report_filename, validation_results):
                     ['Standard Error (SEE)', 'Slope (m)', 'R2', 'Intercept (b)']):
                 row_name = '%s %s' % (validation_name, check_description)
                 set_value_at(report_df, row_name,
-                             [validation_results['%s_%s' % (validation_prefix, check_name)]])
+                             [regression_results['%s_%s' % (validation_prefix, check_name)]])
                 set_value_at(report_df, row_name,
-                             [validation_results['%s_%s_limit_min' % (validation_prefix, check_name)]], col_offset=2)
+                             [regression_results['%s_%s_limit_min' % (validation_prefix, check_name)]], col_offset=2)
                 set_value_at(report_df, row_name,
-                             [validation_results['%s_%s_limit_max' % (validation_prefix, check_name)]], col_offset=3)
+                             [regression_results['%s_%s_limit_max' % (validation_prefix, check_name)]], col_offset=3)
                 set_value_at(report_df, row_name,
-                             pass_fail_dict[validation_results['%s_%sOK' % (validation_prefix, check_name)]], col_offset=5)
+                             pass_fail_dict[regression_results['%s_%sOK' % (validation_prefix, check_name)]], col_offset=5)
             for check_name, check_description in zip(
                     ['Points'], ['Records Used for Analysis (#)']):
                 row_name = '%s %s' % (validation_name, check_description)
                 set_value_at(report_df, row_name,
-                             int(validation_results['%s_%s' % (validation_prefix, check_name)]))
+                             int(regression_results['%s_%s' % (validation_prefix, check_name)]))
 
             for check_name, check_description in zip(
                     ['CheckFailCount'], ['Validation']):
                 row_name = '%s %s' % (validation_name, check_description)
                 set_value_at(report_df, row_name,
-                             pass_fail_dict[validation_results['%s_%s' % (validation_prefix, check_name)] == 0])
+                             pass_fail_dict[regression_results['%s_%s' % (validation_prefix, check_name)] == 0])
 
 
         with pd.ExcelWriter(
