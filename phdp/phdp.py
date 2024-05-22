@@ -1600,7 +1600,9 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=No
     """
     from statistics import linear_regression
 
-    if test_type == 'transient':
+    mode_indices_skip_total = []
+
+    if test_type == 'transient' or mode_number is None:
         # skip the first few seconds of the data
         ref_skip = \
             ref.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
@@ -1608,7 +1610,6 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=No
             meas.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
     else:
         # skip the first few seconds of each mode
-        mode_indices_skip_total = []
         ref_skip = []
         meas_skip = []
 
@@ -1968,7 +1969,7 @@ def run_phdp(runtime_options):
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
 
                             if calc_mode != 'dilute-bag':
-                                _, drift_corrected_time_aligned_data_summary['BagFillProportionality'] = (
+                                _, drift_corrected_time_aligned_data_summary['BagFillProportionality'], _ = (
                                     proportionality_check(time_aligned_data['CVSFlow_mol/s'],
                                                           time_aligned_data['BagFillFlow_Avg_mol/s']))
 
