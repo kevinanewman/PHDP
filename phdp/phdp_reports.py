@@ -975,13 +975,13 @@ def CFR1065EMS_checks(report_df, row_name, row_select, value_name):
     CFR1065_datetimes(report_df, cfr1065ems, row_name, row_select)
 
 
-def generate_cycle_validation_report(report_filename, best_validation_results):
+def generate_cycle_validation_report(report_filename, validation_results):
     """
     Generate cycle validation report
 
     Args:
         report_df (DataFrame): the report template dataframe
-        best_validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
+        validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
 
     """
     report_df = pd.read_csv(path + os.sep + 'cycle_validation_report_template.csv', encoding='UTF-8', header=None)
@@ -989,8 +989,8 @@ def generate_cycle_validation_report(report_filename, best_validation_results):
 
     pass_fail_dict = {True: 'pass', False: 'FAIL'}
 
-    for i in range(len(best_validation_results['regression_results'])):
-        validation_results = best_validation_results['regression_results'][i]
+    for i in range(len(validation_results['regression_results'])):
+        validation_results = validation_results['regression_results'][i]
         ecn = validation_results['Emissions Cycle Number']
 
         set_value_at(report_df, 'Cycle Validation', validation_results['descriptor'])
