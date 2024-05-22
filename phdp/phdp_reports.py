@@ -907,6 +907,7 @@ def generate_pre_test_check_report(report_filename):
     cfr1065pm = phdp_globals.test_data['CFR1065PM']
 
     if cfr1065pm is not None:
+        check_name = 'CheckPassFail'
         row_name = 'DLS/PSU Leak Check'
         set_value_at(report_df, row_name, pass_fail_dict[cfr1065pm[check_name].item()], col_offset=3)
         CFR1065_datetimes(report_df, cfr1065pm, row_name, 0)
