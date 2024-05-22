@@ -936,9 +936,9 @@ def CFR1065_datetimes(report_df, cfrdata, row_name, row_select):
         Nothing, updates values in ``report_df``
 
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    time_offset = datetime(1899, 12, 29, 22, 26, 57).timestamp()
+    time_offset = datetime(1899, 12, 29, 22, 26, 57,  tzinfo=timezone.utc).timestamp()
 
     test_time = cfrdata['Time_Date'].loc[row_select].item() * 24 * 3600 + time_offset
     check_time = cfrdata['TestTime_Date'].loc[row_select].item() * 24 * 3600 + time_offset
