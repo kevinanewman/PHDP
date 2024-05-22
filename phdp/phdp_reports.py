@@ -834,8 +834,6 @@ def generate_pre_test_check_report(report_filename):
     set_value_at(report_df, 'Oil Temperature', pre_test['OilGalleryTempAvg_°C'], col_offset=2)
 
     cfr1065ems = phdp_globals.test_data['CFR1065EMS']
-    cfr1065cvs = phdp_globals.test_data['CFR1065CVS']
-    cfr1065pm = phdp_globals.test_data['CFR1065PM']
 
     # LEAK checks
     check_name = 'LeakRate_%'
@@ -863,25 +861,7 @@ def generate_pre_test_check_report(report_filename):
     row_name = 'DILUTE N2O Cold'
     CFR1065EMS_checks(report_df, row_name, row_select, check_name)
 
-    pass_fail_dict = {'Pass': 'pass', 'Fail': 'FAIL'}
-
-    check_name = 'CheckPassFail'
-    row_select = cfr1065cvs['Component'] == 'BSU Fill Line'
-    row_name = 'BSU Fill Line Leak Check'
-    set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
-    CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
-
-    row_select = cfr1065cvs['Component'] == 'BSU Read Line'
-    row_name = 'BSU Read Line Leak Check'
-    set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
-    CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
-
-    if cfr1065pm is not None:
-        row_name = 'DLS/PSU Leak Check'
-        set_value_at(report_df, row_name, pass_fail_dict[cfr1065pm[check_name].item()], col_offset=3)
-        CFR1065_datetimes(report_df, cfr1065pm, row_name, 0)
-
-    # HANGUP checks
+    # CFR1065EMS HANGUP checks
     check_name = 'Hangup_ppmC'
     row_select = (cfr1065ems['Line'] == 'DILUTE') & (cfr1065ems['Component'] == 'THC') & (cfr1065ems['Check'] == 'HCHangup')
     row_name = 'DILUTE THC'
@@ -891,22 +871,45 @@ def generate_pre_test_check_report(report_filename):
     row_name = 'DIRECT THC'
     CFR1065EMS_checks(report_df, row_name, row_select, check_name)
 
-    for bagpair in [1, 2, 3]:
-        check_name = 'AmbBagHangup_ppmC'
-        row_select = (cfr1065cvs['Check'] == 'HCHangup') & (cfr1065cvs['Component'] == 'THC') & (cfr1065cvs['HCHangupBagPair_Integer'] == bagpair)
-        row_name = 'Amb Bag HC Hangup Test %d' % bagpair
-        value = cfr1065cvs[check_name].loc[row_select].item()
-        set_value_at(report_df, row_name, [value], col_offset=2)
-        set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
+    pass_fail_dict = {'Pass': 'pass', 'Fail': 'FAIL'}
+
+    cfr1065cvs = phdp_globals.test_data['CFR1065CVS']
+
+    if cfr1065cvs is not None:
+        check_name = 'CheckPassFail'
+        row_select = cfr1065cvs['Component'] == 'BSU Fill Line'
+        row_name = 'BSU Fill Line Leak Check'
+        set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
         CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
 
-        check_name = 'SampleBagHangup_ppmC'
-        row_select = (cfr1065cvs['Check'] == 'HCHangup') & (cfr1065cvs['Component'] == 'THC') & (cfr1065cvs['HCHangupBagPair_Integer'] == bagpair)
-        row_name = 'Sample Bag HC Hangup Test %d' % bagpair
-        value = cfr1065cvs[check_name].loc[row_select].item()
-        set_value_at(report_df, row_name, [value], col_offset=2)
-        set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
+        row_select = cfr1065cvs['Component'] == 'BSU Read Line'
+        row_name = 'BSU Read Line Leak Check'
+        set_value_at(report_df, row_name, pass_fail_dict[cfr1065cvs[check_name].loc[row_select].item()], col_offset=3)
         CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+
+        for bagpair in [1, 2, 3]:
+            check_name = 'AmbBagHangup_ppmC'
+            row_select = (cfr1065cvs['Check'] == 'HCHangup') & (cfr1065cvs['Component'] == 'THC') & (cfr1065cvs['HCHangupBagPair_Integer'] == bagpair)
+            row_name = 'Amb Bag HC Hangup Test %d' % bagpair
+            value = cfr1065cvs[check_name].loc[row_select].item()
+            set_value_at(report_df, row_name, [value], col_offset=2)
+            set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
+            CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+
+            check_name = 'SampleBagHangup_ppmC'
+            row_select = (cfr1065cvs['Check'] == 'HCHangup') & (cfr1065cvs['Component'] == 'THC') & (cfr1065cvs['HCHangupBagPair_Integer'] == bagpair)
+            row_name = 'Sample Bag HC Hangup Test %d' % bagpair
+            value = cfr1065cvs[check_name].loc[row_select].item()
+            set_value_at(report_df, row_name, [value], col_offset=2)
+            set_value_at(report_df, row_name, pass_fail_range(value, [-np.inf, 2]), col_offset=3)
+            CFR1065_datetimes(report_df, cfr1065cvs, row_name, row_select)
+
+    cfr1065pm = phdp_globals.test_data['CFR1065PM']
+
+    if cfr1065pm is not None:
+        row_name = 'DLS/PSU Leak Check'
+        set_value_at(report_df, row_name, pass_fail_dict[cfr1065pm[check_name].item()], col_offset=3)
+        CFR1065_datetimes(report_df, cfr1065pm, row_name, 0)
 
     with pd.ExcelWriter(
             report_filename,
@@ -968,11 +971,12 @@ def CFR1065EMS_checks(report_df, row_name, row_select, value_name):
 
     cfr1065ems = phdp_globals.test_data['CFR1065EMS']
 
-    value = cfr1065ems[value_name].loc[row_select].item()
-    set_value_at(report_df, row_name, [value], col_offset=2)
-    set_value_at(report_df, row_name, pass_fail_range(value, [-0.5, 0.5]), col_offset=3)
+    if any(row_select):
+        value = cfr1065ems[value_name].loc[row_select].item()
+        set_value_at(report_df, row_name, [value], col_offset=2)
+        set_value_at(report_df, row_name, pass_fail_range(value, [-0.5, 0.5]), col_offset=3)
 
-    CFR1065_datetimes(report_df, cfr1065ems, row_name, row_select)
+        CFR1065_datetimes(report_df, cfr1065ems, row_name, row_select)
 
 
 def generate_cycle_validation_report(report_filename, validation_results):

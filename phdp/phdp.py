@@ -117,7 +117,7 @@ def load_data(test_site):
                            'drift_corrected_BagData', 'Workstation', 'PreTest', 'CFR1065EMS', 'CFR1065CVS',
                            'CFR1065PM']
 
-    optional_file_names = ['CVSDLSFlows', 'CVSDLSSampleResults', 'CFR1065PM']
+    optional_file_names = ['CVSDLSFlows', 'CVSDLSSampleResults', 'CFR1065CVS', 'CFR1065PM']
 
     required_file_names.extend(optional_file_names)  # add optional files
 
