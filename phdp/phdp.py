@@ -1255,7 +1255,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     best_validation = {'lowest_fail_count': [math.inf] * len(emissions_cycles),
                        'description': [''] * len(emissions_cycles),
                        'validation_data': [None] * len(emissions_cycles),
-                       'regression_results': [None] * len(emissions_cycles)}
+                       'regression_results': [None] * len(emissions_cycles),
+                       'PM_results': dict()}
 
     continuous_data = phdp_globals.test_data['ContinuousData'].copy()
 
@@ -1583,7 +1584,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     return all(cycle_valid), best_validation
 
 
-def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=None):
+def proportionality_check(ref, meas, skip_secs=5, test_type=None):
     """
     Calculate proportionality check percentage, the ratio of standard error to the mean
 
@@ -1592,7 +1593,7 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=No
         meas (list): A list of corresponding measured values.
         skip_secs (int): The number of seconds to skip at the start of the data, if any
         test_type (str): test type, i.e. 'transient' or 'modal'
-        mode_number (dataframe): CVSDLSFlows mode number data for modal test processing
+        mode_numbers (dataframe): CVSDLSFlows mode number data for modal test processing
 
     Returns:
         Proportionality percent, the ratio of standard error to the mean
@@ -1600,27 +1601,15 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=No
     """
     from statistics import linear_regression
 
-    mode_indices_skip_total = []
-
-    if test_type == 'transient' or mode_number is None:
+    if test_type == 'transient' and skip_secs > 0:
         # skip the first few seconds of the data
         ref_skip = \
             ref.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
         meas_skip = \
             meas.iloc[int(skip_secs / constants['MeasurementPeriod_s']):]
     else:
-        # skip the first few seconds of each mode
-        ref_skip = []
-        meas_skip = []
-
-        for mode in mode_number.unique():
-            mode_indices_skip = mode_number.loc[mode_number == mode].index[skip_secs:]
-            ref_skip.extend(ref.loc[mode_indices_skip])
-            meas_skip.extend(meas.loc[mode_indices_skip])
-            mode_indices_skip_total.extend(mode_indices_skip)
-
-        ref_skip = pd.Series(ref_skip)
-        meas_skip = pd.Series(meas_skip)
+        ref_skip = ref
+        meas_skip = meas
 
     samples_per_second = int(1 / constants['MeasurementPeriod_s'])
     sample_length_1Hz = int(len(ref_skip) / samples_per_second) * samples_per_second
@@ -1646,14 +1635,15 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None, mode_number=No
 
     proportionality_pct = SEE / meas_skip_1Hz_mean * 100
 
-    return slope, proportionality_pct, mode_indices_skip_total
+    return proportionality_pct
 
 
-def particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_aligned_data,
+def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode, drift_corrected_time_aligned_data,
                                     validation_results):
     """
 
     Args:
+        emissions_cycle_number (int): emissions cycle number (or mode for modal tests)
         test_type (str): test type, i.e. 'transient' or 'modal'
         calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         drift_corrected_time_aligned_data (DataFrame): drift-corrected time-aligned data
@@ -1662,6 +1652,8 @@ def particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_a
 
     """
     global pre_test_pm_measurement_mg, post_test_pm_measurement_mg, pm_mass_mg
+
+    skip_secs = 5
 
     pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
 
@@ -1675,115 +1667,155 @@ def particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_a
             pm_sample_start_time = ContinuousData['Time_Date'].loc[pm_sample_start_index]
             pm_sample_end_time = ContinuousData['Time_Date'].loc[pm_sample_end_index]
 
-            cvs_sample_start = CVSDLSFlows['Time_Date'] == pm_sample_start_time
-            cvs_sample_end = CVSDLSFlows['Time_Date'] == pm_sample_end_time
-            cvs_sample_start_index = CVSDLSFlows.loc[cvs_sample_start, :].index[0]
-            cvs_sample_end_index = CVSDLSFlows.loc[cvs_sample_end, :].index[0]
+            cvsdls_sample_start = CVSDLSFlows['Time_Date'] == pm_sample_start_time
+            cvsdls_sample_end = CVSDLSFlows['Time_Date'] == pm_sample_end_time
+            cvsdls_sample_start_index = CVSDLSFlows.loc[cvsdls_sample_start, :].index[0]
+            cvsdls_sample_end_index = CVSDLSFlows.loc[cvsdls_sample_end, :].index[0]
 
-            cvs_mass_flow_kgps = CVSDLSFlows['CVSMassFlow_kg/s'].loc[cvs_sample_start_index:cvs_sample_end_index+1]
+            cvs_mass_flow_kgps = CVSDLSFlows['CVSMassFlow_kg/s'].loc[
+                                 cvsdls_sample_start_index:cvsdls_sample_end_index+1]
 
             transfer_mass_flow_kgps = CVSDLSFlows['TransferMassFlow_g/s'].loc[
-                                      cvs_sample_start_index:cvs_sample_end_index+1] / 1000
+                                      cvsdls_sample_start_index:cvsdls_sample_end_index+1] / 1000
         else:  # modal
             cvs_mass_flow_kgps = CVSDLSFlows['CVSMassFlow_kg/s']
             transfer_mass_flow_kgps = CVSDLSFlows['TransferMassFlow_g/s'] / 1000
 
-        cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['MeasurementPeriod_s']
-        transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['MeasurementPeriod_s']
+        if test_type == 'transient' and pre_test_pm_measurement_mg is None and post_test_pm_measurement_mg is None:
+            validation_results['PM_results'][emissions_cycle_number] = dict()
 
-        dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
+            cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['MeasurementPeriod_s']
+            transfer_mass_kg = transfer_mass_flow_kgps.sum() * constants['MeasurementPeriod_s']
 
-        if pre_test_pm_measurement_mg is None and post_test_pm_measurement_mg is None:
-            if test_type == 'transient':
-                pre_test_pm_measurement_mg = \
-                    get_pm_measurement('Enter pre-test PM test filter mass (mg)')
+            dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
 
-                post_test_pm_measurement_mg = \
-                    get_pm_measurement('Enter post-test PM test filter mass (mg)')
+            pre_test_pm_measurement_mg = \
+                get_pm_measurement('Enter pre-test PM test filter mass (mg)')
 
-                pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
-                pm_mass_mg = pm_net_filter_mass_mg * dilution_factor
+            post_test_pm_measurement_mg = \
+                get_pm_measurement('Enter post-test PM test filter mass (mg)')
 
-                # proportionality check
-                _, drift_corrected_time_aligned_data['Proportionality Check'], _ = \
-                    proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps,
-                                          test_type=test_type, mode_number=CVSDLSFlows['ModeNumber_Integer'])
+            pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
+            validation_results['PM_results'][emissions_cycle_number]['pm_mass_g'] = \
+                pm_net_filter_mass_mg * dilution_factor / 1000
 
-                drift_corrected_time_aligned_data['CVS Dilution Ratio'] = \
-                    (drift_corrected_time_aligned_data['CVSFlow_mol/s'] /
-                     drift_corrected_time_aligned_data['nexh_mol/s'])
+            skip_index_count = int(skip_secs / constants['MeasurementPeriod_s'])
 
-                cvs_sample_start = CVSDLSFlows['Time_Date'] == drift_corrected_time_aligned_data['Time_Date'].iloc[0]
-                cvs_sample_end = CVSDLSFlows['Time_Date'] == drift_corrected_time_aligned_data['Time_Date'].iloc[-1]
-                cvs_sample_start_index = CVSDLSFlows.loc[cvs_sample_start, :].index[0]
-                cvs_sample_end_index = CVSDLSFlows.loc[cvs_sample_end, :].index[0]
+            validation_results['PM_results'][emissions_cycle_number]['Proportionality_pct'] = \
+                proportionality_check(cvs_mass_flow_kgps.iloc[skip_index_count:],
+                                      transfer_mass_flow_kgps.iloc[skip_index_count:], skip_secs=0,
+                                      test_type=test_type)
 
-                drift_corrected_time_aligned_data['TransferMassFlow_g/s'] = \
-                    CVSDLSFlows['TransferMassFlow_g/s'][
-                    cvs_sample_start_index:cvs_sample_end_index + 1].values
+            validation_results['PM_results'][emissions_cycle_number]['CVS Dilution Ratio'] = \
+                (drift_corrected_time_aligned_data['CVSFlow_mol/s'].iloc[skip_index_count:] /
+                 drift_corrected_time_aligned_data['nexh_mol/s'].iloc[skip_index_count:])
 
-                drift_corrected_time_aligned_data['FilterMassFlow_g/s'] = \
-                    CVSDLSFlows['FilterMassFlow_g/s'][
-                    cvs_sample_start_index:cvs_sample_end_index + 1].values
+            cvsdls_sample_start = CVSDLSFlows['Time_Date'] == drift_corrected_time_aligned_data['Time_Date'].iloc[0]
+            cvsdls_sample_end = CVSDLSFlows['Time_Date'] == drift_corrected_time_aligned_data['Time_Date'].iloc[-1]
+            cvsdls_sample_start_index = CVSDLSFlows.loc[cvsdls_sample_start, :].index[0] + skip_index_count
+            cvsdls_sample_end_index = CVSDLSFlows.loc[cvsdls_sample_end, :].index[0]
 
-                drift_corrected_time_aligned_data['FilterPressureDrop_kPa'] = \
-                    CVSDLSFlows['FilterPressureDrop_kPa'][
-                    cvs_sample_start_index:cvs_sample_end_index + 1].values
+            validation_results['PM_results'][emissions_cycle_number]['TransferMassFlow_g/s'] = \
+                CVSDLSFlows['TransferMassFlow_g/s'][
+                cvsdls_sample_start_index:cvsdls_sample_end_index + 1].values
 
-                drift_corrected_time_aligned_data['PSU Dilution Ratio'] = \
-                    (drift_corrected_time_aligned_data['FilterMassFlow_g/s'] /
-                     drift_corrected_time_aligned_data['TransferMassFlow_g/s'])
+            validation_results['PM_results'][emissions_cycle_number]['FilterMassFlow_g/s'] = \
+                CVSDLSFlows['FilterMassFlow_g/s'][
+                cvsdls_sample_start_index:cvsdls_sample_end_index + 1].values
 
-                drift_corrected_time_aligned_data['Overall Dilution Ratio'] = \
-                    (drift_corrected_time_aligned_data['PSU Dilution Ratio'] *
-                     drift_corrected_time_aligned_data['CVS Dilution Ratio'])
+            validation_results['PM_results'][emissions_cycle_number]['FilterPressureDrop_kPa'] = \
+                abs(CVSDLSFlows['FilterPressureDrop_kPa'][
+                cvsdls_sample_start_index:cvsdls_sample_end_index + 1].values)
 
-                drift_corrected_time_aligned_data['Kh'] = 9.953 * drift_corrected_time_aligned_data[
-                    'xH2Oint_mol/mol'] + 0.832
+            validation_results['PM_results'][emissions_cycle_number]['PSU Dilution Ratio'] = \
+                (validation_results['PM_results'][emissions_cycle_number]['FilterMassFlow_g/s'] /
+                 validation_results['PM_results'][emissions_cycle_number]['TransferMassFlow_g/s'])
 
-            else:  # TODO: handling for modal tests with multiple samples ...
-                mode_numbers = CVSDLSFlows['ModeNumber_Integer'].unique()
-                pm_mass_mg = [0] * len(mode_numbers)
-                for idx, mode in enumerate(mode_numbers):
-                    print(idx, mode)
+            validation_results['PM_results'][emissions_cycle_number]['Overall Dilution Ratio'] = \
+                (validation_results['PM_results'][emissions_cycle_number]['PSU Dilution Ratio'] *
+                 validation_results['PM_results'][emissions_cycle_number]['CVS Dilution Ratio'])
+
+            drift_corrected_time_aligned_data['Kh'] = 9.953 * drift_corrected_time_aligned_data[
+                'xH2Oint_mol/mol'] + 0.832
+
+        elif test_type == 'modal':
+            mode_number = emissions_cycle_number
+            if mode_number not in validation_results['PM_results']:
+                validation_results['PM_results'][mode_number] = dict()
+
+            validation_results['PM_results'][mode_number]['CVS Dilution Ratio'] = \
+                (drift_corrected_time_aligned_data['CVSFlow_mol/s'] /
+                 drift_corrected_time_aligned_data['nexh_mol/s'])
+
+            max_pressure_drop_kPa = 0
+            max_proportionality_pct = 0
+            mode_skip_indices = []
+
+            if pre_test_pm_measurement_mg is None and post_test_pm_measurement_mg is None:
+                for mode in CVSDLSFlows['ModeNumber_Integer'].unique():
+                    if mode not in validation_results['PM_results']:
+                        validation_results['PM_results'][mode] = dict()
+
+                    mode_numbers = CVSDLSFlows['ModeNumber_Integer']
+                    mode_indices = mode_numbers.loc[mode_numbers == mode].index[skip_secs:]
+                    mode_skip_indices.extend(mode_indices)
+
                     pre_test_pm_measurement_mg = \
                         get_pm_measurement('Enter pre-test PM test filter mass (mg) for mode %d' % mode)
 
                     post_test_pm_measurement_mg = \
                         get_pm_measurement('Enter post-test PM test filter mass (mg) for mode %d' % mode)
 
+                    cvs_mass_kg = cvs_mass_flow_kgps.loc[mode_indices].sum() * constants['MeasurementPeriod_s']
+                    transfer_mass_kg = transfer_mass_flow_kgps.loc[mode_indices].sum() * constants['MeasurementPeriod_s']
+
+                    dilution_factor = (cvs_mass_kg + transfer_mass_kg) / transfer_mass_kg
+
                     pm_net_filter_mass_mg = post_test_pm_measurement_mg - pre_test_pm_measurement_mg
-                    pm_mass_mg[idx] = pm_net_filter_mass_mg * dilution_factor
 
-                # proportionality check
-                _, drift_corrected_time_aligned_data['Proportionality Check'], mode_skip_indices = \
-                    proportionality_check(cvs_mass_flow_kgps, transfer_mass_flow_kgps,
-                                          test_type=test_type, mode_number=CVSDLSFlows['ModeNumber_Integer'])
+                    validation_results['PM_results'][mode]['pm_mass_g'] = (
+                            pm_net_filter_mass_mg * dilution_factor / 1000)
 
-                validation_results['PM_results'] = dict()
+                    mode_pressure_drop_kPa = abs(CVSDLSFlows['FilterPressureDrop_kPa'].loc[mode_indices[-1]] -
+                                              CVSDLSFlows['FilterPressureDrop_kPa'].loc[mode_indices[0]])
 
-                # validation_results['CVS Dilution Ratio'] = None
-                validation_results['PM_results']['TransferMassFlow_g/s'] = \
-                    CVSDLSFlows['TransferMassFlow_g/s'].loc[mode_skip_indices]
+                    if mode_pressure_drop_kPa > max_pressure_drop_kPa:
+                        max_pressure_drop_kPa = mode_pressure_drop_kPa
 
-                validation_results['PM_results']['FilterMassFlow_g/s'] = \
-                    CVSDLSFlows['FilterMassFlow_g/s'].loc[mode_skip_indices]
+                    # proportionality check
+                    mode_proportionality_pct = \
+                        proportionality_check(cvs_mass_flow_kgps.loc[mode_indices],
+                                              transfer_mass_flow_kgps.loc[mode_indices], skip_secs=0,
+                                              test_type=test_type)
 
-                validation_results['PM_results']['FilterPressureDrop_kPa'] = \
-                    CVSDLSFlows['FilterPressureDrop_kPa'].loc[mode_skip_indices]
+                    if mode_proportionality_pct > max_proportionality_pct:
+                        max_proportionality_pct = mode_proportionality_pct
 
-                validation_results['PM_results']['PSU Dilution Ratio'] = \
-                    (validation_results['PM_results']['FilterMassFlow_g/s'] /
-                     validation_results['PM_results']['TransferMassFlow_g/s'])
+                    validation_results['PM_results'][mode]['TransferMassFlow_g/s'] = \
+                        CVSDLSFlows['TransferMassFlow_g/s'].loc[mode_indices]
 
-                # validation_results['PM_results']['Overall Dilution Ratio'] = \
-                #     (validation_results['PM_results']['PSU Dilution Ratio'] /
-                #     validation_results['PM_results']['CVS Dilution Ratio'])
-                
-    else:
-        pm_mass_mg = None
+                    validation_results['PM_results'][mode]['FilterMassFlow_g/s'] = \
+                        CVSDLSFlows['FilterMassFlow_g/s'].loc[mode_indices]
 
-    return pm_mass_mg  # , pm_sampling_proportionality_pct
+            validation_results['PM_results'][mode_number]['FilterPressureDrop_kPa'] = \
+                [0, max_pressure_drop_kPa]
+
+            validation_results['PM_results'][mode_number]['Proportionality_pct'] = \
+                max_proportionality_pct
+
+            validation_results['PM_results'][mode_number]['PSU Dilution Ratio'] = \
+                (validation_results['PM_results'][mode_number]['FilterMassFlow_g/s'] /
+                 validation_results['PM_results'][mode_number]['TransferMassFlow_g/s'])
+
+            validation_results['PM_results'][mode_number]['Overall Dilution Ratio'] = \
+                (validation_results['PM_results'][mode_number]['PSU Dilution Ratio'] /
+                validation_results['PM_results'][mode_number]['CVS Dilution Ratio'].item())
+
+            validation_results['PM_results'][mode_number]['PSU Dilution Ratio'] = \
+                validation_results['PM_results'][mode_number]['PSU Dilution Ratio'].min()
+
+            validation_results['PM_results'][mode_number]['Overall Dilution Ratio'] = \
+                validation_results['PM_results'][mode_number]['Overall Dilution Ratio'].min()
 
 
 def run_phdp(runtime_options):
@@ -1861,6 +1893,12 @@ def run_phdp(runtime_options):
             emissions_available = phdp_globals.test_data['BagData']['RbSpanValue_ppm'].max() > 0
 
             if emissions_available:
+
+                report_output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
+                report_filename = (phdp_globals.options.output_folder_base + report_output_prefix + 'report.xlsx')
+                generate_pre_test_check_report(report_filename, test_datetime)
+                generate_cycle_validation_report(report_filename, validation_results)
+
                 if [p for p in phdp_globals.test_data['EmsComponents']['ParameterName'] if 'raw' in p.lower()]:
                     calc_modes = ['dilute', 'raw', 'dilute-bag']  # NOTE: 'dilute' mode must be first for reports
                 else:
@@ -1969,7 +2007,7 @@ def run_phdp(runtime_options):
                             time_aligned_data_summary['EmissionsCycleNumber_Integer'] = emissions_cycle_number
 
                             if calc_mode != 'dilute-bag':
-                                _, drift_corrected_time_aligned_data_summary['BagFillProportionality'], _ = (
+                                drift_corrected_time_aligned_data_summary['BagFillProportionality'] = (
                                     proportionality_check(time_aligned_data['CVSFlow_mol/s'],
                                                           time_aligned_data['BagFillFlow_Avg_mol/s']))
 
@@ -1985,9 +2023,8 @@ def run_phdp(runtime_options):
                             calculations_1036['ModeNumber_Integer'] = mode_number
 
                         # PM measurements and related calculations:
-                        pm_mass_mg = \
-                            particulate_matter_calculations(test_type, calc_mode, drift_corrected_time_aligned_data,
-                                                            validation_results)
+                        particulate_matter_calculations(ecn, test_type, calc_mode, drift_corrected_time_aligned_data,
+                                                        validation_results)
 
                         results['tad'].append(time_aligned_data)
                         results['dctad'].append(drift_corrected_time_aligned_data)
@@ -1997,55 +2034,52 @@ def run_phdp(runtime_options):
 
                     print('\nSaving results...\n')
 
-                    output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%s-' % calc_mode
+                    testdata_output_prefix = horiba_filename.rsplit('.', 1)[0] + '-%s-' % calc_mode
 
                     if test_type == 'modal':
                         index_name = 'ModeNumber_Integer'
                     else:
                         index_name = 'EmissionsCycleNumber_Integer'
                         phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                            phdp_globals.options.output_folder_base + output_prefix + 'dcbagdata.csv', index=False,
+                            phdp_globals.options.output_folder_base + testdata_output_prefix + 'dcbagdata.csv', index=False,
                             encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat(results['tad']).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'tad.csv',
+                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'tad.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat(results['dctad']).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dctad.csv',
+                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'dctad.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'tadsummary.csv',
+                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'tadsummary.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
+                    # transfer PM results into dctadsummary
+                    for idx, mode in enumerate(validation_results['PM_results'].keys()):
+                        results['dctadsummary'][idx]['mPM_g'] = validation_results['PM_results'][mode]['pm_mass_g']
+
                     pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + 'dctadsummary.csv',
+                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'dctadsummary.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + output_prefix + '1036_calculations.csv',
+                        phdp_globals.options.output_folder_base + testdata_output_prefix + '1036_calculations.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
-                    output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
-
-                    if test_type == 'transient':
-                        report_filename = generate_transient_report(output_prefix, calc_mode, results, test_datetime,
-                                                                    test_type, test_num, test_site, vehicle_test,
-                                                                    pm_mass_mg)
-                    else:
-                        report_filename = generate_modal_report(output_prefix, calc_mode, results, test_datetime,
-                                                                test_type, test_num, test_site)
-
-                    generate_driftcheck_report(report_filename, results, test_type, test_name)
-
                     if calc_mode == 'dilute':
-                        generate_general_report(report_filename, calc_mode, results,
+                        generate_general_report(report_filename, calc_mode, results, validation_results,
                                                 test_type, test_datetime, test_site)
 
-                        generate_cycle_validation_report(report_filename, validation_results)
+                    if test_type == 'transient':
+                        generate_transient_report(report_filename, calc_mode, results, validation_results,
+                                                  test_datetime, test_type, test_num, test_site, vehicle_test)
+                    else:
+                        generate_modal_report(report_filename, calc_mode, results, validation_results,
+                                              test_datetime, test_type, test_num, test_site)
 
-                generate_pre_test_check_report(report_filename, test_datetime)
+                    generate_driftcheck_report(report_filename, results, test_type, test_name)
 
                 print('done!')
 

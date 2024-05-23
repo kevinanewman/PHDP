@@ -16,21 +16,21 @@ from metpy.units import units
 initial_report = True
 
 
-def generate_transient_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site,
-                              vehicle_test, pm_mass_mg):
+def generate_transient_report(report_filename, calc_mode, results, validation_results,
+                              test_datetime, test_type, test_num, test_site, vehicle_test):
     """
     Generate a transient test report.
 
     Args:
-        output_prefix (str): the prefix to be added to the filename of the generated report file.
+        report_filename (str): the Excel report filename, a new sheet will be added
         calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         results (dict): a dictionary containing the results of the emissions calculations.
+        validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
         test_type (str): test type, i.e. 'transient' or 'modal'
         test_num (int): the number assigned to the test, e.g. '00139'
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
         vehicle_test (bool): ``True`` if test has an associated vehicle speed trace
-        pm_mass_mg (float): particulate matter mass (mg)
 
     Returns:
         Report file name for use by subsequent reports
@@ -86,10 +86,12 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
 
         cycle_work_kWh = results['tadsummary'][i]['cycle_work_kWh']
 
-        # TODO: PM calculations
-        if pm_mass_mg is not None:
-            set_value_at(report_df, 'Total PM Mass', [pm_mass_mg])
-            set_value_at(report_df, 'BSPM', [pm_mass_mg / 1000 / cycle_work_kWh.item()])
+        if validation_results['PM_results']:
+            set_value_at(report_df, 'Total PM Mass',
+                         [validation_results['PM_results'][emissions_cycle_number]['pm_mass_g'] * 1000])
+            set_value_at(report_df, 'BSPM',
+                         [validation_results['PM_results'][emissions_cycle_number]['pm_mass_g'] /
+                                             cycle_work_kWh.item()])
         else:
             set_value_at(report_df, 'Total PM Mass', 'N/A')
             set_value_at(report_df, 'BSPM', 'N/A')
@@ -167,8 +169,6 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
             set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
             set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
 
-        report_filename = (phdp_globals.options.output_folder_base + output_prefix + 'report.xlsx')
-
         if initial_report:
             mode = 'w'
             initial_report = False
@@ -180,20 +180,20 @@ def generate_transient_report(output_prefix, calc_mode, results, test_datetime, 
                 mode=mode,
                 engine="openpyxl",
         ) as writer:
-            report_df.to_excel(writer, index=False, header=False, sheet_name='%s Emissions %d' %
+            report_df.to_excel(writer, index=False, header=False, sheet_name='Emissions %s %d' %
                                                                              (calc_mode, emissions_cycle_number))
 
-    return report_filename
 
-
-def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test_type, test_num, test_site):
+def generate_modal_report(report_filename, calc_mode, results, validation_results,
+                          test_datetime, test_type, test_num, test_site):
     """
     Generate a modal report and calculated mode-weighted mass and brake-specific emissions.
 
     Args:
-        output_prefix (str): the prefix to be added to the filename of the generated report file.
+        report_filename (str): the Excel report filename, a new sheet will be added
         calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
         results (dict): a dictionary containing the results of the emissions calculations.
+        validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
         test_type (str): test type, i.e. 'transient' or 'modal'
         test_num (int): the number assigned to the test, e.g. '00139'
@@ -275,6 +275,10 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
                          col_offset=col_offset)
             set_value_at(report_df, 'Net NMHC+NOx', results['dctadsummary'][i]['mNMHCnet_g+mNOxnet_g'],
                          col_offset=col_offset)
+            if 'mPM_g' in results['dctadsummary'][i]:
+                set_value_at(report_df, 'Total PM', results['dctadsummary'][i]['mPM_g'], col_offset=col_offset)
+            else:
+                set_value_at(report_df, 'Total PM', [0], col_offset=col_offset)
 
         set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'],
                      col_offset=col_offset)
@@ -317,27 +321,29 @@ def generate_modal_report(output_prefix, calc_mode, results, test_datetime, test
         set_value_at(report_df, 'Power (kW)', weighted_power)
 
         # calculate weighted values
-        for idx, signal in enumerate(('CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC')):
-            weighted_mass_emissions = 0
+        for idx, signal in enumerate(('CO2', 'CO', 'NOx', 'THC', 'CH4', 'N2O', 'NMHC', 'PM')):
+            weighted_mass_emissions = pd.Series(0)
             for i in range(0, len(results['dctadsummary'])):
-                weighted_mass_emissions += (
-                        results['dctadsummary'][i]['m%s_g' % signal] *
-                        phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i] /
-                        results['dctad'][i]['elapsed_time_s'] * 3600)
+                if 'm%s_g' % signal in results['dctadsummary'][i]:
+                    weighted_mass_emissions += (
+                            results['dctadsummary'][i]['m%s_g' % signal] *
+                            phdp_globals.test_data['CycleDefinition']['WeightingFactor_Fraction'].iloc[i] /
+                            results['dctad'][i]['elapsed_time_s'] * 3600)
             weighted_specific_emissions = weighted_mass_emissions / weighted_power
             set_value_at(report_df, 'Mass Emissions (g/h)', weighted_mass_emissions, col_offset=idx + 1)
             set_value_at(report_df, 'Specific Emsissions (g/kWh)', weighted_specific_emissions, col_offset=idx + 1)
 
-    report_filename = (phdp_globals.options.output_folder_base + output_prefix + 'report.xlsx')
+    if file_exists(report_filename):
+        mode = 'a'
+    else:
+        mode = 'w'
 
     with pd.ExcelWriter(
             report_filename,
-            mode="w",
+            mode=mode,
             engine="openpyxl",
     ) as writer:
-        report_df.to_excel(writer, index=False, header=False, sheet_name='Emissions')
-
-    return report_filename
+        report_df.to_excel(writer, index=False, header=False, sheet_name='Emissions %s' % calc_mode)
 
 
 def calc_emscalresults_drift_check(report_df, emissions_cycle_number, check_phase, limit_pct, driftline, components):
@@ -603,24 +609,33 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
 
 
 def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, scale=1):
-    if signal_name in dctad:
-        set_value_at(report_df, value_name, [dctad[signal_name].mean() * scale], col_offset=col_offset)
-        set_value_at(report_df, value_name, [dctad[signal_name].min() * scale], col_offset=col_offset+1)
-        set_value_at(report_df, value_name, [dctad[signal_name].max() * scale], col_offset=col_offset+2)
+    found = False
 
-        return True
+    if type(dctad) is pd.Series:
+        values = dctad
+        found = True
     else:
-        return False
+        if signal_name in dctad:
+            values = dctad[signal_name]
+            found = True
+    if found:
+        set_value_at(report_df, value_name, [values.mean() * scale], col_offset=col_offset)
+        set_value_at(report_df, value_name, [values.min() * scale], col_offset=col_offset+1)
+        set_value_at(report_df, value_name, [values.max() * scale], col_offset=col_offset+2)
+
+    return found
 
 
-def generate_general_report(report_filename, calc_mode, results, test_type, test_datetime, test_site):
+def generate_general_report(report_filename, calc_mode, results, validation_results,
+                            test_type, test_datetime, test_site):
     """
     Generate general test report
 
     Args:
         report_filename (str): the Excel report filename, a new sheet will be added
         calc_mode (str): the mode used during the emissions calculations - 'dilute', 'raw', etc.
-        results (dict): a dictionary containing the results of the emissions calculations.
+        results (dict): a dictionary containing the results of the emissions calculations
+        validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
         test_type (str): test type, i.e. 'transient' or 'modal'
         test_datetime (str): the date and time of the test in YYYMMDDhhmm format.
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
@@ -631,6 +646,8 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
 
     if test_type == 'modal':
         emissions_cycles = [1]
+        modes = [results['tadsummary'][i]['ModeNumber_Integer'].iloc[0]
+                            for i in range(0, len(results['tadsummary']))]
     else:
         emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
                             for i in range(0, len(results['tadsummary']))]
@@ -770,28 +787,50 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
                          cvs_dlsresults['TotalResidenceTime_s'].max() <= 5.5)
             set_value_at(report_df, 'Overall Residence Time', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
-        dctad_trunc = dctad.iloc[int(skip_secs / constants['SamplePeriod_s']):].copy()
-
-        if set_average_min_max(report_df, dctad_trunc, 'CVS Tunnel Dilution Ratio', 'CVS Dilution Ratio', col_offset=2):
-            pass_fail = dctad_trunc['CVS Dilution Ratio'].min() >= 2.0
+        if validation_results['PM_results']:
+            if test_type == 'modal':
+                cvs_dilution_ratios = \
+                    pd.Series([validation_results['PM_results'][i]['CVS Dilution Ratio'].item()
+                               for i in validation_results['PM_results']])
+            else:
+                cvs_dilution_ratios = validation_results['PM_results'][emissions_cycle_number]['CVS Dilution Ratio']
+            set_average_min_max(report_df, cvs_dilution_ratios, 'CVS Tunnel Dilution Ratio',
+                                'CVS Dilution Ratio', col_offset=2)
+            pass_fail = cvs_dilution_ratios.min() >= 2.0
             set_value_at(report_df, 'CVS Tunnel Dilution Ratio', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
-        set_average_min_max(report_df, dctad_trunc, 'PSU Dilution Ratio', 'PSU Dilution Ratio', col_offset=2)
+            if test_type == 'modal':
+                psu_dilution_ratios = \
+                    pd.Series([validation_results['PM_results'][i]['PSU Dilution Ratio']
+                               for i in validation_results['PM_results']])
+            else:
+                psu_dilution_ratios = pd.Series(validation_results['PM_results'][
+                                                    emissions_cycle_number]['PSU Dilution Ratio'])
+            set_average_min_max(report_df, psu_dilution_ratios, 'PSU Dilution Ratio', 'PSU Dilution Ratio',
+                                col_offset=2)
 
-        if set_average_min_max(report_df, dctad_trunc, 'Overall Dilution Ratio', 'Overall Dilution Ratio', col_offset=2):
-            pass_fail = (5.0 <= dctad_trunc['Overall Dilution Ratio'].min() <= 7.0)
+            if test_type == 'modal':
+                overall_dilution_ratios = \
+                    pd.Series([validation_results['PM_results'][i]['Overall Dilution Ratio']
+                               for i in validation_results['PM_results']])
+            else:
+                overall_dilution_ratios = \
+                    validation_results['PM_results'][emissions_cycle_number]['Overall Dilution Ratio']
+
+            set_average_min_max(report_df, overall_dilution_ratios, 'Overall Dilution Ratio',
+                                   'Overall Dilution Ratio', col_offset=2)
+            pass_fail = (5.0 <= overall_dilution_ratios.min() <= 7.0)
             set_value_at(report_df, 'Overall Dilution Ratio', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
-        if 'Proportionality Check' in dctad_trunc:
-            set_value_at(report_df, 'Proportionality Check (SEE/mean flow)', [dctad_trunc['Proportionality Check'].mean()],
-                         col_offset=2)
-            pass_fail = dctad_trunc['Proportionality Check'].mean() <= 3.5
+            set_value_at(report_df, 'Proportionality Check (SEE/mean flow)',
+                         [validation_results['PM_results'][1]['Proportionality_pct'].mean() / 100], col_offset=2)
+            pass_fail = validation_results['PM_results'][1]['Proportionality_pct'].mean() <= 3.5
             set_value_at(report_df, 'Proportionality Check (SEE/mean flow)', pass_fail_range(pass_fail, [True, True]),
                          col_offset=7)
 
-        if 'FilterPressureDrop_kPa' in dctad:
-            set_value_at(report_df, 'Filter Pressure Drop Increase', [dctad['FilterPressureDrop_kPa'].iloc[-1] -
-                                                                      dctad['FilterPressureDrop_kPa'].iloc[0]],
+            set_value_at(report_df, 'Filter Pressure Drop Increase',
+                         [validation_results['PM_results'][1]['FilterPressureDrop_kPa'][-1] -
+                          validation_results['PM_results'][1]['FilterPressureDrop_kPa'][0]],
                          col_offset=2)
 
         with pd.ExcelWriter(
@@ -801,7 +840,7 @@ def generate_general_report(report_filename, calc_mode, results, test_type, test
                 if_sheet_exists="replace",
         ) as writer:
             report_df.to_excel(writer, index=False, header=False,
-                               sheet_name='%s General %d' % (calc_mode, emissions_cycle_number))
+                               sheet_name='General %s %d' % (calc_mode, emissions_cycle_number))
 
 
 def CFR1065EMS_checks(report_df, test_datetime, row_name, row_select, value_name):
@@ -977,9 +1016,8 @@ def generate_pre_test_check_report(report_filename, test_datetime):
 
     with pd.ExcelWriter(
             report_filename,
-            mode="a",
+            mode="w",
             engine="openpyxl",
-            if_sheet_exists="replace",
     ) as writer:
         report_df.to_excel(writer, index=False, header=False,
                            sheet_name='PreTestCheck')
