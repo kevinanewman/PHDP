@@ -13,8 +13,6 @@ from constants import constants
 from metpy.calc import specific_humidity_from_dewpoint
 from metpy.units import units
 
-initial_report = True
-
 
 def generate_transient_report(report_filename, calc_mode, results, validation_results,
                               test_datetime, test_type, test_num, test_site, vehicle_test):
@@ -36,8 +34,6 @@ def generate_transient_report(report_filename, calc_mode, results, validation_re
         Report file name for use by subsequent reports
 
     """
-    global initial_report
-
     for i in range(0, len(results['tadsummary'])):
         emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
 
@@ -169,15 +165,9 @@ def generate_transient_report(report_filename, calc_mode, results, validation_re
             set_value_at(report_df, 'CycleAverageIdleTorque', 'NA', col_offset=2)
             set_value_at(report_df, 'EngineToVehicleSpeedRatio', 'NA', col_offset=2)
 
-        if initial_report:
-            mode = 'w'
-            initial_report = False
-        else:
-            mode = 'a'
-
         with pd.ExcelWriter(
                 report_filename,
-                mode=mode,
+                mode='a',
                 engine="openpyxl",
         ) as writer:
             report_df.to_excel(writer, index=False, header=False, sheet_name='Emissions %s %d' %
