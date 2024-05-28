@@ -1361,7 +1361,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                     if test_name == 'GHGTRNS':
                         start_condition = (continuous_data['EmissionsCycleNumber_Integer'] == ecn)
                     else:
-                        start_condition = (continuous_data['ModeNumber_Integer'] == 1)
+                        start_condition = ((continuous_data['ModeNumber_Integer'] == 1) &
+                                           (continuous_data['EmissionsCycleNumber_Integer'] == ecn))
 
                     if test_name == 'RMC':
                         start_condition_index = 9
