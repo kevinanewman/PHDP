@@ -698,6 +698,13 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
 
         EmsCalResults = phdp_globals.test_data['EmsCalResults']
 
+        EmsCalResults_ecns = EmsCalResults['EmissionsCycleNumber_Integer'].unique()
+
+        if len(EmsCalResults_ecns) == 1:
+            emscal_emissions_cycle_number = EmsCalResults_ecns[0]
+        else:
+            emscal_emissions_cycle_number = emissions_cycle_number
+
         signals = [
             'conRawCO2_Avg_%vol', 'conRawHCO_Avg_ppm', 'conRawNOX_Avg_ppm', 'conRawTHC_Avg_ppmC',
             'conRawCH4cutter_Avg_ppmC', 'conRawO2_Avg_%vol', 'conRawNH3_Avg_ppm',
@@ -709,7 +716,8 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
             component, driftline, scale_factor = handle_emscal_driftline(signal)
             emscal_data = (
                 EmsCalResults)[
-                (EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline)]
+                (EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline) &
+                (EmsCalResults['EmissionsCycleNumber_Integer'] == emscal_emissions_cycle_number)]
 
             if not emscal_data.empty:
                 signal_prefix = signal.rsplit('_')[0]
@@ -881,7 +889,7 @@ def CFR1065_datetimes(report_df, test_datetime, cfrdata, row_name, row_select):
 
     time_offset = filename_timestamp - test_timestamp
 
-    test_time = phdp_globals.test_data['Workstation']['Time_Date'].item() * 24 * 3600 + time_offset
+    test_time = phdp_globals.test_data['Workstation']['Time_Date'].iloc[0].item() * 24 * 3600 + time_offset
     check_time = cfrdata['TestTime_Date'].loc[row_select].item() * 24 * 3600 + time_offset
     elapsed_time_secs = test_time - check_time
 
@@ -907,7 +915,7 @@ def generate_pre_test_check_report(report_filename, test_datetime):
     report_df = pd.read_csv(path + os.sep + 'pre_test_check_template.csv', encoding='UTF-8', header=None)
     report_df = report_df.fillna('')
 
-    pre_test = phdp_globals.test_data['PreTest']
+    pre_test = phdp_globals.test_data['PreTest'].iloc[0]
 
     set_value_at(report_df, 'Cell Ambient Temperature', pre_test['CellAmbTempAvg_°C'], col_offset=2)
     set_value_at(report_df, 'Cell Ambient Temperature', pass_fail_range(pre_test['CellAmbTempAvg_°C'].item(), [20, 30]), col_offset=5)

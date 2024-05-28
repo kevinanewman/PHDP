@@ -757,13 +757,15 @@ def post_chemical_balance_calculations(time_aligned_data, calc_mode):
             time_aligned_data['CVSFlow_mol%s' % unit_rate] - time_aligned_data['nexh_mol%s' % unit_rate])
 
 
-def drift_correct_continuous_data(time_aligned_data, signal_name):
+def drift_correct_continuous_data(time_aligned_data, signal_name, emissions_cycle_number, test_name):
     """
     Perform drift correction for continuous data, per CFR1065.672-1
 
     Args:
         time_aligned_data (dataframe): time-aligned continuous test data
         signal_name (str): signal name, e.g. 'conRawCO2_Avg_%vol'
+        emissions_cycle_number (int): emissions cycle number to process
+        test_name (str): test type name, e.g. 'FTP', 'RMC', etc
 
     Returns:
         Nothing, updates dataframe with drift corrected signal.
@@ -771,11 +773,20 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
     """
     xrefzero = 0
 
+    EmsCalResults = phdp_globals.test_data['EmsCalResults']
+
+    EmsCalResults_ecns = EmsCalResults['EmissionsCycleNumber_Integer'].unique()
+
+    if len(EmsCalResults_ecns) == 1:
+        emscal_emissions_cycle_number = EmsCalResults_ecns[0]
+    else:
+        emscal_emissions_cycle_number = emissions_cycle_number
+
     component, driftline, scale_factor = handle_emscal_driftline(signal_name)
 
-    EmsCalResults = phdp_globals.test_data['EmsCalResults']
     xpre_data = (
-        EmsCalResults)[(EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline)]
+        EmsCalResults)[(EmsCalResults['DriftComponent'] == component) & (EmsCalResults['DriftLine'] == driftline) &
+                       (EmsCalResults['EmissionsCycleNumber_Integer'] == emscal_emissions_cycle_number)]
 
     if not xpre_data.empty:
         xrefspan = xpre_data['DriftSpanValue_ppm'].item()
@@ -783,8 +794,17 @@ def drift_correct_continuous_data(time_aligned_data, signal_name):
         xprespan = xpre_data['DriftSpanMeasured_ppm'].item()
 
         DriftCheck = phdp_globals.test_data['DriftCheck']
+
+        DriftCheck_ecns = DriftCheck['EmissionsCycleNumber_Integer'].unique()
+
+        if len(DriftCheck_ecns) == 1:
+            drift_check_emissions_cycle_number = DriftCheck_ecns[0]
+        else:
+            drift_check_emissions_cycle_number = emissions_cycle_number
+
         xpost_data = (
-            DriftCheck)[(DriftCheck['DriftComponent'] == component) & (DriftCheck['DriftLine'] == driftline)]
+            DriftCheck)[(DriftCheck['DriftComponent'] == component) & (DriftCheck['DriftLine'] == driftline) &
+                        (DriftCheck['EmissionsCycleNumber_Integer'] == drift_check_emissions_cycle_number)]
 
         xpostzero = xpost_data['DriftZeroMeasured_ppm'].item()
         xpostspan = xpost_data['DriftSpanMeasured_ppm'].item()
@@ -1682,7 +1702,7 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
             cvs_mass_flow_kgps = CVSDLSFlows['CVSMassFlow_kg/s']
             transfer_mass_flow_kgps = CVSDLSFlows['TransferMassFlow_g/s'] / 1000
 
-        if test_type == 'transient' and pre_test_pm_measurement_mg is None and post_test_pm_measurement_mg is None:
+        if test_type == 'transient' and emissions_cycle_number not in validation_results['PM_results']:
             validation_results['PM_results'][emissions_cycle_number] = dict()
 
             cvs_mass_kg = cvs_mass_flow_kgps.sum() * constants['MeasurementPeriod_s']
@@ -1978,7 +1998,8 @@ def run_phdp(runtime_options):
                         # drift-correct concentrations
                         for signal_name in \
                                 [col for col in drift_corrected_time_aligned_data.columns if col.startswith('con')]:
-                            drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name)
+                            drift_correct_continuous_data(drift_corrected_time_aligned_data, signal_name,
+                                                          emissions_cycle_number, test_name)
 
                         # drift-correct bag values
                         phdp_globals.test_data['drift_corrected_BagData'] = phdp_globals.test_data['BagData'].copy()
