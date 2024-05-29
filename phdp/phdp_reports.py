@@ -114,17 +114,23 @@ def generate_transient_report(report_filename, calc_mode, results, validation_re
         set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=3)  # CO2
 
         co_value = min(brake_specific_emissions_drift_check_pct[1],
-                       ((original_brake_specific_emissions[1] - corrected_brake_specific_emissions[1]))/3.5 * 100)
+                       (original_brake_specific_emissions[1] - corrected_brake_specific_emissions[1])/3.5 * 100)
         pass_fail = pass_fail_range(co_value, [-4, 4])
         set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=4)  # CO
 
-        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[2], [-4, 4])
+        nox_value = min(brake_specific_emissions_drift_check_pct[2],
+                       (original_brake_specific_emissions[2] - corrected_brake_specific_emissions[2])/0.27 * 100)
+        pass_fail = pass_fail_range(nox_value, [-4, 4])
         set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=5)  # NOx
 
-        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[3], [-4, 4])
+        hc_value = min(brake_specific_emissions_drift_check_pct[3],
+                       (original_brake_specific_emissions[3] - corrected_brake_specific_emissions[3])/0.19 * 100)
+        pass_fail = pass_fail_range(hc_value, [-4, 4])
         set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=6)  # HC
 
-        pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[6], [-4, 4])
+        nmhc_value = min(brake_specific_emissions_drift_check_pct[6],
+                       (original_brake_specific_emissions[6] - corrected_brake_specific_emissions[6])/0.19 * 100)
+        pass_fail = pass_fail_range(nmhc_value, [-4, 4])
         set_value_at(report_df, '1065 Drift Check', pass_fail, col_offset=9)  # NMHC
 
         pass_fail = pass_fail_range(brake_specific_emissions_drift_check_pct[7], [-4, 4])
