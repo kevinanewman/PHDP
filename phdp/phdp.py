@@ -27,10 +27,6 @@ from constants import constants
 import test_sites
 from phdp_reports import *
 
-pre_test_pm_measurement_mg = None
-post_test_pm_measurement_mg = None
-pm_mass_mg = None
-
 
 def init_phdp(runtime_options):
     """
@@ -1662,8 +1658,8 @@ def proportionality_check(ref, meas, skip_secs=5, test_type=None):
     return proportionality_pct
 
 
-max_pressure_drop_kPa = 0
-max_proportionality_pct = 0
+mode_max_filter_pressure_drop_kPa = 0
+mode_max_proportionality_pct = 0
 
 
 def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode, drift_corrected_time_aligned_data,
@@ -1679,8 +1675,7 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
     Returns:
 
     """
-    global pre_test_pm_measurement_mg, post_test_pm_measurement_mg, pm_mass_mg
-    global max_pressure_drop_kPa, max_proportionality_pct
+    global mode_max_filter_pressure_drop_kPa, mode_max_proportionality_pct
 
     skip_secs = 5
 
@@ -1790,25 +1785,25 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
                 mode_pressure_drop_kPa = abs(CVSDLSFlows['FilterPressureDrop_kPa'].loc[mode_indices[-1]] -
                                           CVSDLSFlows['FilterPressureDrop_kPa'].loc[mode_indices[0]])
 
-                if mode_pressure_drop_kPa > max_pressure_drop_kPa:
-                    max_pressure_drop_kPa = mode_pressure_drop_kPa
+                if mode_pressure_drop_kPa > mode_max_filter_pressure_drop_kPa:
+                    mode_max_filter_pressure_drop_kPa = mode_pressure_drop_kPa
 
                 mode_proportionality_pct = \
                     proportionality_check(cvs_mass_flow_kgps.loc[mode_indices],
                                           transfer_mass_flow_kgps.loc[mode_indices], skip_secs=0,
                                           test_type=test_type)
 
-                if mode_proportionality_pct > max_proportionality_pct:
-                    max_proportionality_pct = mode_proportionality_pct
+                if mode_proportionality_pct > mode_max_proportionality_pct:
+                    mode_max_proportionality_pct = mode_proportionality_pct
 
                 validation_results['PM_results'][mode_number] = dict()
 
                 # store max pressure drop and proportionality percent
                 validation_results['PM_results'][1]['FilterPressureDrop_kPa'] = \
-                    [0, max_pressure_drop_kPa]
+                    [0, mode_max_filter_pressure_drop_kPa]
 
                 validation_results['PM_results'][1]['Proportionality_pct'] = \
-                    pd.Series(max_proportionality_pct)
+                    pd.Series(mode_max_proportionality_pct)
 
                 # store various mode values
                 validation_results['PM_results'][mode_number]['pm_mass_g'] = (
