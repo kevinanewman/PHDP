@@ -15,3 +15,6 @@ scipy
 openpyxl
 
 metpy
+
+bumpversion
+pyinstaller
