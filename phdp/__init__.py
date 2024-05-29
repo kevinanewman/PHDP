@@ -4,7 +4,8 @@
 """
 
 code_version = "0.1.0"
-print('loading phdp version %s' % code_version)
+
+print('\n--- Starting PHDP %s ---\n' % code_version)
 
 import os, sys
 
@@ -56,8 +57,7 @@ try:
             self.verbose = True
 
             path = os.path.dirname(os.path.abspath(__file__)) + os.sep
-            self.output_folder_base = 'out' + os.sep
-            self.output_folder = self.output_folder_base
+            self.output_folder = None
             self.phdp_path = path
             self.logfile_prefix = 'phdplog_'
             self.logfilename = ''

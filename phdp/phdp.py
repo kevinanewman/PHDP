@@ -1547,7 +1547,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                                                                             [pass_fail[stp]])
                         ax1.set_title(title_str)
                         ax1.legend()
-                        fig.savefig(phdp_globals.options.output_folder_base + output_prefix + '-' + title_str)
+                        fig.savefig(phdp_globals.options.output_folder + output_prefix + '-' + title_str)
                         plt.close(fig)
 
                     fail_count += sum([int(pass_fail_range(stats[k], limits[stp][k]) == 'FAIL') for k in stats])
@@ -1590,12 +1590,12 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                                                                                       (ecn, time_shift, may_omit_str)]
 
         df = pd.DataFrame(regression_results).transpose()
-        df.to_csv(phdp_globals.options.output_folder_base + output_prefix +
+        df.to_csv(phdp_globals.options.output_folder + output_prefix +
                   '-cycle-%d-regression_shift.csv' % ecn, columns=sorted(df.columns))
 
     for idx, validation_data in enumerate(best_validation['validation_data']):
         if validation_data is not None:
-            pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder_base + output_prefix +
+            pd.DataFrame(validation_data).to_csv(phdp_globals.options.output_folder + output_prefix +
                                                  '-validation_data_cycle_%s.csv' %
                                                  best_validation['description'][idx], index=False)
 
@@ -1861,9 +1861,8 @@ def run_phdp(runtime_options):
 
             phdp_globals.options.output_folder = (file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep +
                                                   horiba_filename.rsplit('.', 1)[0] + '.PHDP' + os.sep)
-            phdp_globals.options.output_folder_base = phdp_globals.options.output_folder
 
-            file_io.validate_folder(phdp_globals.options.output_folder)
+            phdp_globals.options.output_folder = phdp_globals.options.output_folder
 
             init_logfile()
 
@@ -1921,7 +1920,7 @@ def run_phdp(runtime_options):
             if emissions_available:
 
                 report_output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
-                report_filename = (phdp_globals.options.output_folder_base + report_output_prefix + 'report.xlsx')
+                report_filename = (phdp_globals.options.output_folder + report_output_prefix + 'report.xlsx')
                 generate_pre_test_check_report(report_filename, test_datetime)
                 generate_cycle_validation_report(report_filename, validation_results)
 
@@ -2068,19 +2067,19 @@ def run_phdp(runtime_options):
                     else:
                         index_name = 'EmissionsCycleNumber_Integer'
                         phdp_globals.test_data['drift_corrected_BagData'].to_csv(
-                            phdp_globals.options.output_folder_base + testdata_output_prefix + 'dcbagdata.csv', index=False,
+                            phdp_globals.options.output_folder + testdata_output_prefix + 'dcbagdata.csv', index=False,
                             encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat(results['tad']).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'tad.csv',
+                        phdp_globals.options.output_folder + testdata_output_prefix + 'tad.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat(results['dctad']).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'dctad.csv',
+                        phdp_globals.options.output_folder + testdata_output_prefix + 'dctad.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat([pd.DataFrame(ts) for ts in results['tadsummary']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'tadsummary.csv',
+                        phdp_globals.options.output_folder + testdata_output_prefix + 'tadsummary.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     # transfer PM results into dctadsummary
@@ -2088,11 +2087,11 @@ def run_phdp(runtime_options):
                         results['dctadsummary'][idx]['mPM_g'] = validation_results['PM_results'][mode]['pm_mass_g']
 
                     pd.concat([pd.DataFrame(ts) for ts in results['dctadsummary']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + testdata_output_prefix + 'dctadsummary.csv',
+                        phdp_globals.options.output_folder + testdata_output_prefix + 'dctadsummary.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     pd.concat([pd.DataFrame(ts) for ts in results['1036_calculations']]).set_index(index_name).to_csv(
-                        phdp_globals.options.output_folder_base + testdata_output_prefix + '1036_calculations.csv',
+                        phdp_globals.options.output_folder + testdata_output_prefix + '1036_calculations.csv',
                         encoding=phdp_globals.options.output_encoding, errors='replace')
 
                     if calc_mode == 'dilute':
