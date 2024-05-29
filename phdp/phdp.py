@@ -572,7 +572,7 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
         else:
             converged = ((time_aligned_data - time_aligned_data_prior).abs() <=
                          phdp_globals.options.chemical_balance_convergence_tolerance *
-                         time_aligned_data.abs()).all().all()
+                         time_aligned_data.abs()).all().all() or iteration == 99
 
         time_aligned_data_prior = time_aligned_data.copy()
 
@@ -582,6 +582,9 @@ def iterate_chemical_balance(time_aligned_data, calc_mode, emissions_cycle_numbe
         iteration = iteration + 1
 
     print('Converged in %d iterations' % iteration)
+
+    if iteration == 100:
+        print('-- Possible failed convergence, convergence iteration limit exceeded --')
 
     if iteration > 10:
         print()
