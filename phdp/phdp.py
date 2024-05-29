@@ -12,7 +12,7 @@ import sys, os
 
 import numpy as np
 import pandas as pd
-import scipy
+from scipy.stats import linregress
 import math
 
 import matplotlib
@@ -1238,7 +1238,7 @@ def calc_stats(ref, meas):
         dict: A dictionary containing the slope, intercept, R-squared value and Standard Error of the Estimate.
 
     """
-    slope, intercept, r_value, _, _ = scipy.stats.linregress(ref, meas)
+    slope, intercept, r_value, _, _ = linregress(ref, meas)
 
     STEYX = calc_STEYX(ref, meas, slope, intercept)
 
