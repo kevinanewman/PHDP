@@ -6,6 +6,8 @@ PHDP report generators
 import os
 path = os.path.dirname(os.path.abspath(__file__))
 
+print('path is "%s"' % path)
+
 from phdp import *
 from common.file_io import file_exists
 from constants import constants
@@ -38,7 +40,9 @@ def generate_transient_report(report_filename, calc_mode, results, validation_re
         emissions_cycle_number = results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
 
         # create report header
-        report_df = pd.read_csv(path + os.sep + 'transient_report_template.csv', encoding='UTF-8', header=None)
+        report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'transient_report_template.csv',
+                                encoding='UTF-8', header=None)
+
         report_df = report_df.fillna('')
 
         set_value_at(report_df, 'Test Date',
@@ -194,7 +198,9 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
 
     """
     # create report header
-    report_df = pd.read_csv(path + os.sep + 'modal_report_template.csv', encoding='UTF-8', header=None)
+    report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'modal_report_template.csv',
+                            encoding='UTF-8', header=None)
+
     report_df = report_df.fillna('')
 
     set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
@@ -541,7 +547,9 @@ def generate_driftcheck_report(report_filename, results, test_type, test_name):
         test_name (str): test type name, e.g. 'FTP', 'RMC', etc
 
     """
-    report_df = pd.read_csv(path + os.sep + 'drift_check_report_template.csv', encoding='UTF-8', header=None)
+    report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'drift_check_report_template.csv',
+                            encoding='UTF-8', header=None)
+
     report_df = report_df.fillna('')
 
     if test_type == 'modal':
@@ -631,7 +639,9 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
 
     """
-    report_df = pd.read_csv(path + os.sep + 'general_report_template.csv', encoding='UTF-8', header=None)
+    report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'general_report_template.csv',
+                            encoding='UTF-8', header=None)
+
     report_df = report_df.fillna('')
 
     if test_type == 'modal':
@@ -912,7 +922,9 @@ def generate_pre_test_check_report(report_filename, test_datetime):
             test_datetime (str): the date and time of the test in YYYMMDDhhmm format
 
     """
-    report_df = pd.read_csv(path + os.sep + 'pre_test_check_template.csv', encoding='UTF-8', header=None)
+    report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'pre_test_check_template.csv',
+                            encoding='UTF-8', header=None)
+
     report_df = report_df.fillna('')
 
     pre_test = phdp_globals.test_data['PreTest'].iloc[0]
@@ -1030,7 +1042,9 @@ def generate_cycle_validation_report(report_filename, validation_results):
         validation_results (dict): dict of results from best cycle validation (min error, min omits, min shift)
 
     """
-    report_df = pd.read_csv(path + os.sep + 'cycle_validation_report_template.csv', encoding='UTF-8', header=None)
+    report_df = pd.read_csv(path + os.sep + 'report_templates' + os.sep + 'cycle_validation_report_template.csv',
+                            encoding='UTF-8', header=None)
+
     report_df = report_df.fillna('')
 
     pass_fail_dict = {True: 'pass', False: 'FAIL'}

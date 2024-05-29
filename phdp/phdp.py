@@ -28,6 +28,11 @@ import test_sites
 from phdp_reports import *
 
 
+def init_logfile():
+    phdp_log.init_logfile()
+    phdp_log.logwrite("Initializing PHDP %s:" % code_version)
+
+
 def init_phdp(runtime_options):
     """
     Initialize PHDP
@@ -40,10 +45,6 @@ def init_phdp(runtime_options):
 
     """
     phdp_globals.options = runtime_options
-
-    phdp_log.init_logfile()
-
-    phdp_log.logwrite("Initializing PHDP %s:" % code_version)
 
     phdp_globals.test_data = dict()
     phdp_globals.validated_data = dict()
@@ -117,7 +118,6 @@ def load_data(test_site):
 
     required_file_names.extend(optional_file_names)  # add optional files
 
-    os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
     input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
     for input_file in input_files:
         file_name = input_file.rsplit('.', 2)[-2]
@@ -1856,6 +1856,16 @@ def run_phdp(runtime_options):
                     filedialog.askopenfilename(title='Select any test file', filetypes=[('csv', '*.csv')])
 
             horiba_filename = file_io.get_filename(phdp_globals.options.horiba_file)
+
+            os.chdir(file_io.get_filepath(phdp_globals.options.horiba_file))
+
+            phdp_globals.options.output_folder = (file_io.get_filepath(phdp_globals.options.horiba_file) + os.sep +
+                                                  horiba_filename.rsplit('.', 1)[0] + '.PHDP' + os.sep)
+            phdp_globals.options.output_folder_base = phdp_globals.options.output_folder
+
+            file_io.validate_folder(phdp_globals.options.output_folder)
+
+            init_logfile()
 
             test_site, test_datetime, test_num, test_name, _ = horiba_filename.replace('.Tn', '').split('.')
 

@@ -56,7 +56,7 @@ try:
             self.verbose = True
 
             path = os.path.dirname(os.path.abspath(__file__)) + os.sep
-            self.output_folder_base = path + 'out' + os.sep
+            self.output_folder_base = 'out' + os.sep
             self.output_folder = self.output_folder_base
             self.phdp_path = path
             self.logfile_prefix = 'phdplog_'
