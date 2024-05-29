@@ -3,7 +3,7 @@
 
 """
 
-code_version = "0.0.0"
+code_version = "0.1.0"
 print('loading phdp version %s' % code_version)
 
 import os, sys
