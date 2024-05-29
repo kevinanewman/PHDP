@@ -1821,11 +1821,11 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
                     validation_results['PM_results'][mode]['FilterMassFlow_g/s'] = \
                         CVSDLSFlows['FilterMassFlow_g/s'].loc[mode_indices]
 
-            validation_results['PM_results'][mode_number]['FilterPressureDrop_kPa'] = \
-                [0, max_pressure_drop_kPa]
+                    validation_results['PM_results'][1]['FilterPressureDrop_kPa'] = \
+                        [0, max_pressure_drop_kPa]
 
-            validation_results['PM_results'][mode_number]['Proportionality_pct'] = \
-                max_proportionality_pct
+                    validation_results['PM_results'][1]['Proportionality_pct'] = \
+                        pd.Series(max_proportionality_pct)
 
             validation_results['PM_results'][mode_number]['PSU Dilution Ratio'] = \
                 (validation_results['PM_results'][mode_number]['FilterMassFlow_g/s'] /
