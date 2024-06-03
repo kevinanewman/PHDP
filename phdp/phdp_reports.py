@@ -668,8 +668,12 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
         set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
         set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
 
-        # drift corrected time-aligned data
-        dctad = results['dctad'][emissions_cycle_number-1]
+        if test_type == 'transient':
+            # drift corrected time-aligned data
+            dctad = results['dctad'][emissions_cycle_number-1]
+        else:
+            dctad = pd.concat([results['dctad'][mode-1] for mode in modes])
+
         dctadsummary = results['dctadsummary'][emissions_cycle_number-1]
 
         set_average_min_max(report_df, dctad, 'Barometric Pressure', 'pCellAmbient_Avg_kPa', col_offset=2)
@@ -698,7 +702,7 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
             set_value_at(report_df, 'CA Coolant Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
         set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_°C', col_offset=2)
-        # set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', '?', col_offset=2)
+        set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', 'tEngPmTrapFace_°C', col_offset=2)
         set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_°C', col_offset=2)
         set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 

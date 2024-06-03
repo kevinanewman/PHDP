@@ -1681,6 +1681,9 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
 
     pm_sample_pts = phdp_globals.test_data['ContinuousData']['PMSampling_Logical'] == True
 
+    drift_corrected_time_aligned_data['Kh'] = 9.953 * drift_corrected_time_aligned_data[
+        'xH2Oint_mol/mol'] + 0.832
+
     if calc_mode != 'dilute-bag' and any(pm_sample_pts):
         CVSDLSFlows = phdp_globals.test_data['CVSDLSFlows']
         ContinuousData = phdp_globals.test_data['ContinuousData']
@@ -1758,9 +1761,6 @@ def particulate_matter_calculations(emissions_cycle_number, test_type, calc_mode
             validation_results['PM_results'][emissions_cycle_number]['Overall Dilution Ratio'] = \
                 (validation_results['PM_results'][emissions_cycle_number]['PSU Dilution Ratio'] *
                  validation_results['PM_results'][emissions_cycle_number]['CVS Dilution Ratio'])
-
-            drift_corrected_time_aligned_data['Kh'] = 9.953 * drift_corrected_time_aligned_data[
-                'xH2Oint_mol/mol'] + 0.832
 
         elif test_type == 'modal':
             mode_number = emissions_cycle_number

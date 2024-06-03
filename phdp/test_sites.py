@@ -124,6 +124,7 @@ def init_site_info(test_site, test_type):
                     'CVSDilExhTemp_Avg_°C': 0,
                     'pTailpipe_Avg_kPa': 0,
                     'tFuel_Avg_°C': 0,
+                    'tEngPmTrapFace_°C': 0,
                 }
 
             if test_site == 'HD02':
