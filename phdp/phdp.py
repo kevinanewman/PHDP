@@ -100,11 +100,12 @@ def get_unitized_columns(filename, sheet_name=None, ignore_units=('Text', ''), e
     return unitized_columns
 
 
-def load_data(test_site):
+def load_data(test_filename_prefix, test_site):
     """
         Load test data into phdp_globals.test_data dict
 
     Args:
+        test_filename_prefix (str): test filename prefix, e.g. 'HD05.202402141518.00033.FTP'
         test_site (str): the name of the site where the test was performed, e.g. 'HD02'
 
     """
@@ -118,7 +119,7 @@ def load_data(test_site):
 
     required_file_names.extend(optional_file_names)  # add optional files
 
-    input_files = sorted([f for f in os.listdir() if f.endswith('.csv')])
+    input_files = sorted([f for f in os.listdir() if f.startswith(test_filename_prefix) and f.endswith('.csv')])
     for input_file in input_files:
         file_name = input_file.rsplit('.', 2)[-2]
 
@@ -1889,8 +1890,10 @@ def run_phdp(runtime_options):
 
             phdp_log.logwrite('\nProcessing test %s (%s) from %s...\n' % (test_num, test_type, test_site))
 
+            test_filename_prefix = horiba_filename.rsplit('.', 1)[0]
+
             # load data
-            load_data(test_site)
+            load_data(test_filename_prefix, test_site)
 
             emissions_cycles = \
                 [ecn for ecn in phdp_globals.test_data['ContinuousData']['EmissionsCycleNumber_Integer'].unique()
@@ -1919,7 +1922,7 @@ def run_phdp(runtime_options):
 
             if emissions_available:
 
-                report_output_prefix = horiba_filename.rsplit('.', 1)[0] + '-'
+                report_output_prefix = test_filename_prefix + '-'
                 report_filename = (phdp_globals.options.output_folder + report_output_prefix + 'report.xlsx')
                 generate_pre_test_check_report(report_filename, test_datetime)
                 generate_cycle_validation_report(report_filename, validation_results)
