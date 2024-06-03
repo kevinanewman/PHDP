@@ -691,19 +691,19 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
         set_average_min_max(report_df, dctad, 'Fuel Flow', 'qmFuel_Avg_g/h', col_offset=2, scale=1/1000)
         set_average_min_max(report_df, dctad, 'Intake Air Flow', 'qmIntakeAir_Avg_kg/h', col_offset=2)
         set_average_min_max(report_df, dctad, 'DEF Flow', 'DEFMassFlowRate_Avg_g/h', col_offset=2, scale=1/1000)
-        set_average_min_max(report_df, dctad, 'Exhaust Back-pressure', 'ExhaustBackPressure_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Exhaust Back-pressure', 'ExhaustBackPressure_Avg_kPa', col_offset=2)
         set_average_min_max(report_df, dctad, 'Fuel Pump Inlet Temperature', 'tFuel_Avg_°C', col_offset=2)
-        set_average_min_max(report_df, dctad, 'Fuel Pump Supply Pressure', 'pFuelSupply_kPa', col_offset=2)
-        set_average_min_max(report_df, dctad, 'Fuel Pump Return Pressure', 'pFuelReturn_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Pump Supply Pressure', 'pFuelSupply_Avg_kPa', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Fuel Pump Return Pressure', 'pFuelReturn_Avg_kPa', col_offset=2)
 
-        if set_average_min_max(report_df, dctad, 'CA Coolant Temperature', 'tCoolantCA_°C', col_offset=2):
-            pass_fail = (dctad['tCoolantCA_°C'].min() >= 20 and
-                         dctad['tCoolantCA_°C'].max() <= 30)
+        if set_average_min_max(report_df, dctad, 'CA Coolant Temperature', 'tCoolantCA_Avg_°C', col_offset=2):
+            pass_fail = (dctad['tCoolantCA_Avg_°C'].min() >= 20 and
+                         dctad['tCoolantCA_Avg_°C'].max() <= 30)
             set_value_at(report_df, 'CA Coolant Temperature', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
-        set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_°C', col_offset=2)
-        set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', 'tEngPmTrapFace_°C', col_offset=2)
-        set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Coolant Temperature', 'tCoolantIn_Avg_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'PM Trap Face Temperature', 'tEngPmTrapFace_Avg_°C', col_offset=2)
+        set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_Avg_°C', col_offset=2)
         set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 
         set_value_at(report_df, 'FuelType', phdp_globals.test_data['EngineData']['FuelTypeName'], col_offset=2)
