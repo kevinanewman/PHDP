@@ -115,16 +115,41 @@ def init_site_info(test_site, test_type):
                     'conCH4cutter_Avg_ppmC': get_ems_sample_delay('DilCH4_System'),
                     'BagFillFlow_Avg_l/min': 0,
                     'EngDynoMode': 0,
-                    'ExhaustBackPressure_kPa': 0,
-                    'pFuelReturn_kPa': 0,
-                    'pFuelSupply_kPa': 0,
-                    'tCoolantCA_°C': 0,
-                    'tCoolantIn_°C': 0,
-                    'tOilSump_°C': 0,
+                    'ExhaustBackPressure_Avg_kPa': 0,
                     'CVSDilExhTemp_Avg_°C': 0,
                     'pTailpipe_Avg_kPa': 0,
                     'tFuel_Avg_°C': 0,
-                    'tEngPmTrapFace_°C': 0,
+
+                    # use _Avg_ signals if available, fallback to non-_Avg_
+                    'pFuelSupply_Avg_kPa': get_optional_continuous_signal('pFuelSupply_Avg_kPa',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['pFuelSupply_kPa'],
+                                                                          sample_delay=0),
+
+                    'pFuelReturn_Avg_kPa': get_optional_continuous_signal('pFuelReturn_Avg_kPa',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['pFuelReturn_kPa'],
+                                                                          sample_delay=0),
+
+                    'tCoolantCA_Avg_°C': get_optional_continuous_signal('tCoolantCA_Avg_°C',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['tCoolantCA_°C'],
+                                                                          sample_delay=0),
+
+                    'tCoolantIn_Avg_°C': get_optional_continuous_signal('tCoolantIn_Avg_°C',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['tCoolantIn_°C'],
+                                                                          sample_delay=0),
+
+                    'tOilSump_Avg_°C': get_optional_continuous_signal('tOilSump_Avg_°C',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['tOilSump_°C'],
+                                                                          sample_delay=0),
+
+                    'tEngPmTrapFace_Avg_°C': get_optional_continuous_signal('tEngPmTrapFace_Avg_°C',
+                                                                          default_value=phdp_globals.test_data[
+                                                                              'ContinuousData']['tEngPmTrapFace_°C'],
+                                                                          sample_delay=0),
                 }
 
             if test_site == 'HD02':
