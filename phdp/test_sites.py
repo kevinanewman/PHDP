@@ -147,8 +147,7 @@ def init_site_info(test_site, test_type):
                                                                           sample_delay=0),
 
                     'tEngPmTrapFace_Avg_°C': get_optional_continuous_signal('tEngPmTrapFace_Avg_°C',
-                                                                          default_value=phdp_globals.test_data[
-                                                                              'ContinuousData']['tEngPmTrapFace_°C'],
+                                                                          default_value=get_optional_continuous_signal('tEngPmTrapFace_°C', default_value=0, sample_delay=0),
                                                                           sample_delay=0),
                 }
 
