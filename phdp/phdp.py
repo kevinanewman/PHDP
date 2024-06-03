@@ -304,7 +304,7 @@ def pre_chemical_balance_calculations(time_aligned_data, calc_mode, test_type):
                 else:
                     time_aligned_data['CVSFlow_mol/s'] = \
                         (time_aligned_data['CVSFlow_Avg_m³/s'] + time_aligned_data['BagFillFlow_Avg_m³/s'] +
-                        phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_/s'].item() / 1000) / 0.024055
+                        phdp_globals.test_data['TestParameters']['DiluteSampleVolumeFlow_l/s'].item() / 1000) / 0.024055
             else:
                 # TODO: need to verify if this is correct for HD05 transient (FTP) test
                 time_aligned_data['CVSFlow_mol/s'] = (
