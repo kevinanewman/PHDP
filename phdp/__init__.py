@@ -3,7 +3,7 @@
 
 """
 
-code_version = "0.1.3"
+code_version = "0.1.4"
 
 print('\n--- Starting PHDP %s ---\n' % code_version)
 
