@@ -1251,9 +1251,13 @@ def calc_stats(ref, meas):
         dict: A dictionary containing the slope, intercept, R-squared value and Standard Error of the Estimate.
 
     """
-    slope, intercept, r_value, _, _ = linregress(ref, meas)
+    try:
+        slope, intercept, r_value, _, _ = linregress(ref, meas)
 
-    STEYX = calc_STEYX(ref, meas, slope, intercept)
+        STEYX = calc_STEYX(ref, meas, slope, intercept)
+    except:
+        slope = intercept = STEYX = None
+        r_value = 0
 
     return {'slope': slope, 'intercept': intercept, 'R2': r_value**2, 'SEE': STEYX}
 
@@ -1293,6 +1297,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     continuous_data = phdp_globals.test_data['ContinuousData'].copy()
 
     for ecn in emissions_cycles:
+        linear_regression_fail = False
+
         if test_type == 'transient':
             if test_name == 'RMC':
                 # generate 1 Hz RMC cycle reference data
@@ -1546,7 +1552,11 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
                     stats = calc_stats(ref, meas)
 
-                    pass_fail[stp] = all([pass_fail_range(stats[k], limits[stp][k]) == 'pass' for k in stats])
+                    if stats['slope'] is None:
+                        pass_fail[stp] = 'FAIL'
+                        linear_regression_fail = True
+                    else:
+                        pass_fail[stp] = all([pass_fail_range(stats[k], limits[stp][k]) == 'pass' for k in stats])
 
                     if do_plots:
                         fig, ax1 = plt.subplots()
@@ -1605,6 +1615,12 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
         df = pd.DataFrame(regression_results).transpose()
         df.to_csv(phdp_globals.options.output_folder + output_prefix +
                   '-cycle-%d-regression_shift.csv' % ecn, columns=sorted(df.columns))
+
+        if linear_regression_fail:
+            if test_type == 'transient':
+                phdp_log.logwrite('!!! Emissions Cycle %d Validation Linear Regression Failed !!!\n' % ecn)
+            else:
+                phdp_log.logwrite('!!! Mode Number %d Validation Linear Regression Failed !!!\n' % ecn)
 
     for idx, validation_data in enumerate(best_validation['validation_data']):
         if validation_data is not None:

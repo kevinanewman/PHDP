@@ -449,7 +449,7 @@ def pass_fail_range(value, allowed_range):
         str: Returns 'pass' if the `value` falls within the range, otherwise returns 'FAIL'.
 
     """
-    if allowed_range[0] <= value <= allowed_range[1]:
+    if value is not None and allowed_range[0] <= value <= allowed_range[1]:
         return 'pass'
     else:
         return 'FAIL'
