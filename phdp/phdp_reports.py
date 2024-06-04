@@ -1059,9 +1059,8 @@ def generate_cycle_validation_report(report_filename, validation_results):
 
     pass_fail_dict = {True: 'pass', False: 'FAIL'}
 
-    for i in range(len(validation_results['regression_results'])):
-        regression_results = validation_results['regression_results'][i]
-        ecn = regression_results['Emissions Cycle Number']
+    for ecn in validation_results['regression_results']:
+        regression_results = validation_results['regression_results'][ecn]
 
         set_value_at(report_df, 'Cycle Validation', regression_results['descriptor'])
         set_value_at(report_df, 'Shift', regression_results['time_shift'])

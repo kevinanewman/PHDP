@@ -141,7 +141,8 @@ def load_data(test_filename_prefix, test_site):
             phdp_globals.test_data[optional_file] = None
 
 
-def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number, min_mode_number):
+def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions_cycle_number, min_mode_number,
+                               validation_results):
     """
     Time-align continuous data, add Vehicle Moving from cycle definition
 
@@ -151,6 +152,7 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
         sampled_crank (bool): ``True`` if test has sampled engine cranking and startup
         emissions_cycle_number (int): emissions cycle number to process
         min_mode_number (int): the starting mode number of the data
+        validation_results (dict): dict of cycle validation data
 
     Returns:
         Dataframe of time-aligned data
@@ -165,6 +167,11 @@ def time_align_continuous_data(test_site, vehicle_test, sampled_crank, emissions
     constants['SamplePeriod_s'] = SamplePeriod_s  # nominal sample period for purposes of time-aligning data
 
     time_aligned_data = pd.DataFrame(index=phdp_globals.test_data['ContinuousData'].index)
+
+    cycle_shift = validation_results['regression_results'][emissions_cycle_number]['time_shift']
+
+    site_info['signals_and_delays']['ContinuousData']['spDyno_Avg_rev/min'] = cycle_shift
+    site_info['signals_and_delays']['ContinuousData']['tqShaft_Avg_Nm'] = cycle_shift
 
     for source in site_info['signals_and_delays'].keys():
         for signal in site_info['signals_and_delays'][source]:
@@ -1280,7 +1287,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     best_validation = {'lowest_fail_count': [math.inf] * len(emissions_cycles),
                        'description': [''] * len(emissions_cycles),
                        'validation_data': [None] * len(emissions_cycles),
-                       'regression_results': [None] * len(emissions_cycles),
+                       'regression_results': dict(),
                        'PM_results': dict()}
 
     continuous_data = phdp_globals.test_data['ContinuousData'].copy()
@@ -1592,8 +1599,8 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                     best_validation['lowest_fail_count'][ecn-1] = fail_count
                     best_validation['description'][ecn-1] = '%d-%.1f-%s' % (ecn, time_shift, may_omit_str)
                     best_validation['validation_data'][ecn-1] = validation_data
-                    best_validation['regression_results'][ecn-1] = regression_results['%d-%.1f-%s' %
-                                                                                      (ecn, time_shift, may_omit_str)]
+                    best_validation['regression_results'][ecn] = regression_results['%d-%.1f-%s' %
+                                                                                    (ecn, time_shift, may_omit_str)]
 
         df = pd.DataFrame(regression_results).transpose()
         df.to_csv(phdp_globals.options.output_folder + output_prefix +
@@ -1952,7 +1959,8 @@ def run_phdp(runtime_options):
                         if test_type == 'transient':
                             emissions_cycle_number = ecn
                             time_aligned_data = time_align_continuous_data(test_site, vehicle_test, sampled_crank,
-                                                                           emissions_cycle_number, min_mode_number)
+                                                                           emissions_cycle_number, min_mode_number,
+                                                                           validation_results)
                         else:  # modal test
                             from test_sites import site_info
 
