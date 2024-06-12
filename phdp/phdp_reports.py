@@ -209,11 +209,13 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
 
     report_df = report_df.fillna('')
 
+    cycle_id = phdp_globals.test_data['TestDetails']['CycleName'].iloc[0]
+
     set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
     set_value_at(report_df, 'Test Cell', test_site)
     set_value_at(report_df, 'Test Number', test_num)
     set_value_at(report_df, 'Test Type', test_type)
-    set_value_at(report_df, 'Cycle ID', '%s' % phdp_globals.test_data['TestDetails']['CycleName'].iloc[0])
+    set_value_at(report_df, 'Cycle ID', '%s' % cycle_id)
     set_value_at(report_df, 'Calculation Mode', calc_mode)
 
     for i in range(0, len(results['dctadsummary'])):
@@ -312,6 +314,25 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
                      col_offset=mode_number)
         set_value_at(report_df, 'ϵaCrate Check', results['1036_calculations'][i]['eaCrate_g/h_check'],
                      col_offset=mode_number)
+
+        # Mode time validation
+        stablization_time_s = results['dctad'][i]['stabilization_time_s']
+        set_value_at(report_df, 'Stabilization Time', stablization_time_s, col_offset=col_offset)
+        if cycle_id == 'Steady State Fuel Use':
+            pass_fail = pass_fail_range(stablization_time_s.item(), [69, 71])
+        else:
+            pass_fail = 'NA'
+        set_value_at(report_df, 'Stabilization Time Check', pass_fail, col_offset=col_offset)
+
+        mode_time_s = results['dctad'][i]['elapsed_time_s']
+        set_value_at(report_df, 'Mode Time2', mode_time_s, col_offset=col_offset)
+        if cycle_id == 'Steady State Fuel Use':
+            pass_fail = pass_fail_range(mode_time_s.item(), [29, 31])
+        else:
+            pass_fail = 'NA'
+        set_value_at(report_df, 'Mode Time Check', pass_fail, col_offset=col_offset)
+
+        # Speed / torque validation
 
     if 'WeightingFactor_Fraction' in phdp_globals.test_data['CycleDefinition']:
         weighted_power = 0

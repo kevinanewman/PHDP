@@ -1003,6 +1003,9 @@ def calc_summary_results(time_aligned_data, calc_mode, emissions_cycle_number, d
 
     summary_results['elapsed_time_s'] = time_aligned_data['elapsed_time_s'].iloc[0]
 
+    if 'stabilization_time_s' in time_aligned_data:
+        summary_results['stabilization_time_s'] = time_aligned_data['stabilization_time_s'].iloc[0]
+
     return summary_results
 
 
@@ -2001,6 +2004,11 @@ def run_phdp(runtime_options):
 
                             phdp_globals.test_data['ContinuousData']['time_s'] = (
                                     phdp_globals.test_data['ContinuousData']['Time_Date'] * 24 * 3600)
+
+                            stabilization_pts = (
+                                    (phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
+                                    (phdp_globals.test_data['ContinuousData']['ModeStatus'] == 'Stabilizing'))
+
                             mode_pts = (
                                     (phdp_globals.test_data['ContinuousData']['ModeNumber_Integer'] == mode_number) &
                                     (phdp_globals.test_data['ContinuousData']['InModeLog_Logical'] == True))
@@ -2010,6 +2018,9 @@ def run_phdp(runtime_options):
                             constants['SamplePeriod_s'] = len(continuous_data) * constants['MeasurementPeriod_s']
 
                             time_aligned_data['elapsed_time_s'] = constants['SamplePeriod_s']
+
+                            time_aligned_data['stabilization_time_s'] = \
+                                sum(stabilization_pts) * constants['MeasurementPeriod_s']
 
                             for optional_signal in site_info['optional_modal_signals']:
                                 if optional_signal not in time_aligned_data:
