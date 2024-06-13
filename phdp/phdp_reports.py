@@ -4,6 +4,9 @@ PHDP report generators
 """
 
 import os
+
+import numpy as np
+
 path = os.path.dirname(os.path.abspath(__file__))
 
 print('path is "%s"' % path)
@@ -284,8 +287,6 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
             else:
                 set_value_at(report_df, 'Total PM', [0], col_offset=col_offset)
 
-        set_value_at(report_df, 'Mode Time', results['dctad'][i]['elapsed_time_s'],
-                     col_offset=col_offset)
         set_value_at(report_df, 'Power', results['dctad'][i]['Power_kW'],
                      col_offset=col_offset)
 
@@ -320,17 +321,21 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
         set_value_at(report_df, 'Stabilization Time', stablization_time_s, col_offset=col_offset)
         if cycle_id == 'Steady State Fuel Use':
             pass_fail = pass_fail_range(stablization_time_s.item(), [69, 71])
+        elif cycle_id == 'Idle Fuel Consumption':
+            pass_fail = pass_fail_range(stablization_time_s.item(), [179, 181])
         else:
-            pass_fail = 'NA'
+            pass_fail = pass_fail_range(stablization_time_s.item(), [300, np.inf])
         set_value_at(report_df, 'Stabilization Time Check', pass_fail, col_offset=col_offset)
 
         mode_time_s = results['dctad'][i]['elapsed_time_s']
-        set_value_at(report_df, 'Mode Time2', mode_time_s, col_offset=col_offset)
+        set_value_at(report_df, 'Sample Time', mode_time_s, col_offset=col_offset)
         if cycle_id == 'Steady State Fuel Use':
             pass_fail = pass_fail_range(mode_time_s.item(), [29, 31])
+        elif cycle_id == 'Idle Fuel Consumption':
+            pass_fail = pass_fail_range(mode_time_s.item(), [599, 601])
         else:
-            pass_fail = 'NA'
-        set_value_at(report_df, 'Mode Time Check', pass_fail, col_offset=col_offset)
+            pass_fail = pass_fail_range(mode_time_s.item(), [60, np.inf])
+        set_value_at(report_df, 'Sample Time Check', pass_fail, col_offset=col_offset)
 
         # Speed / torque validation
 
