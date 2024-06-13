@@ -2022,6 +2022,14 @@ def run_phdp(runtime_options):
                             time_aligned_data['stabilization_time_s'] = \
                                 sum(stabilization_pts) * constants['MeasurementPeriod_s']
 
+                            time_aligned_data['spDyno_Avg_rev/min_mean'] = continuous_data['spDyno_Avg_rev/min'].mean()
+                            time_aligned_data['spDyno_Avg_rev/min_min'] = continuous_data['spDyno_Avg_rev/min'].min()
+                            time_aligned_data['spDyno_Avg_rev/min_max'] = continuous_data['spDyno_Avg_rev/min'].max()
+
+                            time_aligned_data['tqShaft_Avg_Nm_mean'] = continuous_data['tqShaft_Avg_Nm'].mean()
+                            time_aligned_data['tqShaft_Avg_Nm_min'] = continuous_data['tqShaft_Avg_Nm'].min()
+                            time_aligned_data['tqShaft_Avg_Nm_max'] = continuous_data['tqShaft_Avg_Nm'].max()
+
                             for optional_signal in site_info['optional_modal_signals']:
                                 if optional_signal not in time_aligned_data:
                                     time_aligned_data[optional_signal] = (

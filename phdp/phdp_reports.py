@@ -338,6 +338,58 @@ def generate_modal_report(report_filename, calc_mode, results, validation_result
         set_value_at(report_df, 'Sample Time Check', pass_fail, col_offset=col_offset)
 
         # Speed / torque validation
+        speed_demand_rpm = results['dctad'][i]['DynoSpeedDemand_Avg_rev/min']
+        speed_max_rpm = results['dctad'][i]['spDyno_Avg_rev/min_max']
+        speed_min_rpm = results['dctad'][i]['spDyno_Avg_rev/min_min']
+        set_value_at(report_df, 'Speed Demand', speed_demand_rpm, col_offset=col_offset)
+        set_value_at(report_df, 'Average Speed', results['dctad'][i]['spDyno_Avg_rev/min_mean'], col_offset=col_offset)
+        set_value_at(report_df, 'Maximum Speed', speed_max_rpm, col_offset=col_offset)
+        set_value_at(report_df, 'Minimum Speed', speed_min_rpm, col_offset=col_offset)
+
+        if cycle_id == 'Steady State Fuel Use' or (cycle_id == 'Idle Fuel Consumption' and mode_number > 1):
+            speed_tolerance_rpm = 0.01 * phdp_globals.test_data['MapResults']['EngSpeedNhi50_rev/min'].item()
+            speed_limit = '%.3f ± %.2f' % (speed_demand_rpm.item(), speed_tolerance_rpm)
+        else:
+            speed_limit = ''
+
+        if speed_limit:
+            set_value_at(report_df, 'Speed Limit', speed_limit, col_offset=col_offset)
+
+            if ((speed_max_rpm.item() <= speed_demand_rpm.item() + speed_tolerance_rpm) and
+                    (speed_min_rpm.item() >= speed_demand_rpm.item() - speed_tolerance_rpm)):
+                pass_fail = 'pass'
+            else:
+                pass_fail = 'FAIL'
+
+            set_value_at(report_df, 'Speed Check', pass_fail, col_offset=col_offset)
+
+        torque_demand_Nm = results['dctad'][i]['DynoTorqueDemand_Avg_Nm']
+        torque_max_Nm = results['dctad'][i]['tqShaft_Avg_Nm_max']
+        torque_min_Nm = results['dctad'][i]['tqShaft_Avg_Nm_min']
+        set_value_at(report_df, 'Torque Demand', torque_demand_Nm, col_offset=col_offset)
+        set_value_at(report_df, 'Average Torque', results['dctad'][i]['tqShaft_Avg_Nm_mean'], col_offset=col_offset)
+        set_value_at(report_df, 'Maximum Torque', torque_max_Nm, col_offset=col_offset)
+        set_value_at(report_df, 'Minimum Torque', torque_min_Nm, col_offset=col_offset)
+
+        if cycle_id == 'Steady State Fuel Use' or (cycle_id == 'Idle Fuel Consumption' and mode_number > 1):
+            torque_tolerance_Nm = 0.05 * phdp_globals.test_data['MapResults']['EngMaxTorque_Nm'].item()
+            torque_limit = '%.3f ± %.2f' % (torque_demand_Nm.item(), torque_tolerance_Nm)
+        elif cycle_id == 'Idle Fuel Consumption' and mode_number == 1:
+            torque_tolerance_Nm = 25
+            torque_limit = '%.3f ± %.2f' % (torque_demand_Nm.item(), torque_tolerance_Nm)
+        else:
+            torque_limit = ''
+
+        if torque_limit:
+            set_value_at(report_df, 'Torque Limit', torque_limit, col_offset=col_offset)
+
+            if ((torque_max_Nm.item() <= torque_demand_Nm.item() + torque_tolerance_Nm) and
+                    (torque_min_Nm.item() >= torque_demand_Nm.item() - torque_tolerance_Nm)):
+                pass_fail = 'pass'
+            else:
+                pass_fail = 'FAIL'
+
+            set_value_at(report_df, 'Torque Check', pass_fail, col_offset=col_offset)
 
     if 'WeightingFactor_Fraction' in phdp_globals.test_data['CycleDefinition']:
         weighted_power = 0
