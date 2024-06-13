@@ -1284,7 +1284,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
     # set up cycle data
     reference = dict()
 
-    if test_name == 'GHGTRNS':
+    if test_name in ['GHGTRNS', 'GHGCRSE']:
         cycledef_sample_period_s = 0.1
     else:
         cycledef_sample_period_s = 1.0
@@ -1327,7 +1327,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
                 reference['speed_rpm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_speed_rpm))
                 reference['torque_Nm'] = pd.Series(np.interp(time_index, cycledef_time_s, cycledef_torque_Nm))
-            elif test_name == 'GHGTRNS':
+            elif test_name in ['GHGTRNS', 'GHGCRSE']:
                 reference['speed_rpm'] = phdp_globals.test_data['CycleDefinition']['SpeedDemand_rpm']. \
                     loc[phdp_globals.test_data['CycleDefinition']['EmissionsCycleNumber_Integer'] == ecn]
 
@@ -1399,7 +1399,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                 validation_data = dict()
 
                 if test_type == 'transient':
-                    if test_name == 'GHGTRNS':
+                    if test_name in ['GHGTRNS', 'GHGCRSE']:
                         start_condition = (continuous_data['EmissionsCycleNumber_Integer'] == ecn)
                     else:
                         start_condition = ((continuous_data['ModeNumber_Integer'] == 1) &
@@ -1407,7 +1407,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
                     if test_name == 'RMC':
                         start_condition_index = 9
-                    elif test_name == 'GHGTRNS':
+                    elif test_name in ['GHGTRNS', 'GHGCRSE']:
                         start_condition_index = 0
                     else:
                         start_condition_index = -1
@@ -1427,7 +1427,7 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                 max_index = continuous_data.index[-1]
                 end_index = (
                     min(max_index, continuous_data.loc[end_condition, :]
-                        .index[end_condition_index]))
+                        .index[end_condition_index])) - 1
 
                 # select throttle data, but don't shift it:
                 validation_data['measured_throttle_pct'] = (
@@ -1555,11 +1555,20 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
 
                     stats = calc_stats(ref, meas)
 
+                    if stp == 'speed_rpm':
+                        reference_speed_range = (ref.max() - ref.min()) / ref.mean()
+
                     if stats['slope'] is None:
                         pass_fail[stp] = 'FAIL'
                         linear_regression_fail = True
                     else:
-                        pass_fail[stp] = all([pass_fail_range(stats[k], limits[stp][k]) == 'pass' for k in stats])
+                        if stp == 'speed_rpm' and reference_speed_range <= 0.1:
+                            # only need to check SEE
+                            pass_fail[stp] = pass_fail_range(stats['SEE'], limits[stp]['SEE']) == 'pass'
+                            fail_count += sum([int(pass_fail_range(stats['SEE'], limits[stp]['SEE']) == 'FAIL')])
+                        else:
+                            pass_fail[stp] = all([pass_fail_range(stats[k], limits[stp][k]) == 'pass' for k in stats])
+                            fail_count += sum([int(pass_fail_range(stats[k], limits[stp][k]) == 'FAIL') for k in stats])
 
                     if do_plots:
                         fig, ax1 = plt.subplots()
@@ -1575,8 +1584,6 @@ def validate_data(test_name, test_type, output_prefix, emissions_cycles, modes=N
                         ax1.legend()
                         fig.savefig(phdp_globals.options.output_folder + output_prefix + '-' + title_str)
                         plt.close(fig)
-
-                    fail_count += sum([int(pass_fail_range(stats[k], limits[stp][k]) == 'FAIL') for k in stats])
 
                     regression_results['%d-%.1f-%s' % (ecn, time_shift, may_omit_str)].update({
                         '%s_Slope' % stp: stats['slope'],
@@ -1914,7 +1921,7 @@ def run_phdp(runtime_options):
             else:
                 test_type = 'modal'
 
-            if test_name in ('GHGTRNS'):
+            if test_name in ('GHGTRNS', 'GHGCRSE'):
                 vehicle_test = True
             else:
                 vehicle_test = False
