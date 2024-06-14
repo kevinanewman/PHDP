@@ -18,3 +18,5 @@ metpy
 
 bumpversion
 pyinstaller
+
+pyarmor
