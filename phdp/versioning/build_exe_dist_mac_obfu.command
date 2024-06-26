@@ -1,15 +1,8 @@
 #! /bin/zsh
 
-cd ../..
+cd ..
 
-rm -R obfu
-pyarmor gen -O obfu -r phdp
-mv obfu/pyarmor_runtime_000000 obfu/phdp/pyarmor_runtime_000000
-cp -R phdp/report_templates obfu/phdp/report_templates
-
-cd obfu/phdp
-
-# build executable
+# build executable and generate .spec file for pyarmor
 
 pyinstaller phdp.py \
     --name PHDP-0.1.4-mac-arm64.command \
@@ -18,10 +11,14 @@ pyinstaller phdp.py \
     --noconfirm \
     --onefile
 
+# generate obfuscated executable
+
+pyarmor gen --pack PHDP-0.1.4-mac-arm64.command.spec phdp.py
+
 # cleanup
 
 mv *.spec versioning
-rm -R __pycache__
+rm -R .pyarmor
 rm -R build
 
 cd versioning

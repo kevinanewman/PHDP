@@ -1,10 +1,23 @@
-REM usage build_dist
 
-cd ..\..
+cd ..
 
-rmdir /S /Q obfu
-pyarmor gen -O obfu -r phdp
-move /Y obfu\pyarmor_runtime_000000 obfu\phdp\pyarmor_runtime_000000
-copy /Y phdp\report_templates obfu\phdp\report_templates
+REM build executable and generate .spec file for pyarmor
 
-cd phdp\versioning
+pyinstaller phdp.py ^
+    --name PHDP-0.1.4-win ^
+    --paths .;common ^
+    --add-data report_templates;report_templates ^
+    --noconfirm ^
+    --onefile
+
+REM generate obfuscated executable
+
+pyarmor gen --pack PHDP-0.1.4-win.spec phdp.py
+
+REM cleanup
+
+move /Y  *.spec versioning
+rmdir /S /Q __pycache__
+rmdir /S /Q build
+
+cd versioning
