@@ -5,7 +5,7 @@ cd ..
 # build executable
 
 pyinstaller phdp.py \
-    --name PHDP-0.1.4-mac-arm64.command \
+    --name PHDP-0.1.5-mac-arm64.command \
     --paths .:common \
     --add-data report_templates:report_templates \
     --noconfirm \
