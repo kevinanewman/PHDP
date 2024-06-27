@@ -56,6 +56,8 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
         emissions_cycles = [results['tadsummary'][i]['EmissionsCycleNumber_Integer'].iloc[0]
                             for i in range(0, len(results['tadsummary']))]
 
+    test_data = phdp_globals.test_data
+
     for emissions_cycle_number in emissions_cycles:
         if test_type == 'transient':
             # drift corrected time-aligned data
@@ -65,47 +67,46 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
 
         # write header
         set_value_at(report_df, 'Cell', test_site)
-        set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
+        set_value_at(report_df, 'Operator', test_data['Workstation']['Operator'])
         set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
         set_value_at(report_df, 'Engine Hours Start', dctad['EngineHours_h'].min())
         set_value_at(report_df, 'Engine Hours End', dctad['EngineHours_h'].max())
-        set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
-        set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
-        set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
-        set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
+        set_value_at(report_df, 'Power Map ID', test_data['MapResults']['PowerMapID'])
+        set_value_at(report_df, 'Engine Model', test_data['EngineData']['EngModel'])
+        set_value_at(report_df, 'Engine Number', test_data['EngineData']['EngNumber'])
+        set_value_at(report_df, 'Engine Family', test_data['Header']['EngFamily'])
         set_value_at(report_df, 'Engine Displacement (liter)',
-                     '%.1f' % phdp_globals.test_data['EngineData']['EngDisplacement_l'].iloc[0])
+                     '%.1f' % test_data['EngineData']['EngDisplacement_l'].iloc[0])
         set_value_at(report_df, 'Number of Cylinders',
-                     '%d' % phdp_globals.test_data['EngineData']['EngNumberOfCyls_Integer'].iloc[0])
+                     '%d' % test_data['EngineData']['EngNumberOfCyls_Integer'].iloc[0])
         set_value_at(report_df, 'Intake Restrictive Set Point (kPa)',
-                     phdp_globals.test_data['EngineData']['EngMaxAirInRestriction_kPa'])
+                     test_data['EngineData']['EngMaxAirInRestriction_kPa'])
         set_value_at(report_df, 'Exhaust Restrictive Set Point (kPa)',
-                     phdp_globals.test_data['EngineData']['EngMaxExhBackPress_kPa'])
+                     test_data['EngineData']['EngMaxExhBackPress_kPa'])
 
         # set specified power map data
-        set_value_at(report_df, 'Low Idle Speed', phdp_globals.test_data['EngineData']['EngLowIdleSpeed_rev/min'], col_offset=2)
-        set_value_at(report_df, 'Idle Torque CITT', phdp_globals.test_data['EngineData']['EngCITT_Nm'], col_offset=2)
-        set_value_at(report_df, 'Max Test Speed', phdp_globals.test_data['EngineData']['EngNrefCFR1065_rev/min'], col_offset=2)
-        set_value_at(report_df, 'Speed A', phdp_globals.test_data['EngineData']['EngSpeedA_rev/min'], col_offset=2)
-        set_value_at(report_df, 'Speed B', phdp_globals.test_data['EngineData']['EngSpeedB_rev/min'], col_offset=2)
-        set_value_at(report_df, 'Speed C', phdp_globals.test_data['EngineData']['EngSpeedC_rev/min'], col_offset=2)
-        if 'EngSpeedD_rev/min' in phdp_globals.test_data['EngineData']:
-            set_value_at(report_df, 'Speed D', phdp_globals.test_data['EngineData']['EngSpeedD_rev/min'], col_offset=2)
-        else:
-            set_value_at(report_df, 'Speed D', 'N/A', col_offset=2)
-        set_value_at(report_df, 'Intermediate Speed', phdp_globals.test_data['EngineData']['EngIntSpeedCFR1065_rev/min'], col_offset=2)
-        set_value_at(report_df, 'Max Test Torque', phdp_globals.test_data['EngineData']['EngMaxTrqCFR1065_Nm'], col_offset=2)
+        set_value_at(report_df, 'Low Idle Speed', test_data['EngineData']['EngLowIdleSpeed_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Idle Torque CITT', test_data['EngineData']['EngCITT_Nm'], col_offset=2)
+        set_value_at(report_df, 'Max Test Speed', test_data['EngineData']['EngNrefCFR1065_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed A', test_data['EngineData']['EngSpeedA_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed B', test_data['EngineData']['EngSpeedB_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed C', test_data['EngineData']['EngSpeedC_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed D', 'N/A', col_offset=2)
+        set_value_at(report_df, 'Intermediate Speed', test_data['EngineData']['EngIntSpeedCFR1065_rev/min'],
+                     col_offset=2)
+        set_value_at(report_df, 'Max Test Torque', test_data['EngineData']['EngMaxTorque_Nm'], col_offset=2)
 
         # set observed power map data
-        set_value_at(report_df, 'Low Idle Speed', phdp_globals.test_data['MapResults']['EngLowIdleSpeed_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Low Idle Speed', test_data['MapResults']['EngLowIdleSpeed_rev/min'], col_offset=3)
         set_value_at(report_df, 'Idle Torque CITT', 'N/A', col_offset=3)
-        set_value_at(report_df, 'Max Test Speed', phdp_globals.test_data['MapResults']['EngNrefCFR1065_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Speed A', phdp_globals.test_data['MapResults']['EngSpeedA_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Speed B', phdp_globals.test_data['MapResults']['EngSpeedB_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Speed C', phdp_globals.test_data['MapResults']['EngSpeedC_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Speed D', phdp_globals.test_data['MapResults']['EngSpeedMinNTE_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Intermediate Speed', phdp_globals.test_data['MapResults']['EngIntSpeedCFR1065_rev/min'], col_offset=3)
-        set_value_at(report_df, 'Max Test Torque', phdp_globals.test_data['MapResults']['EngMaxTorqueCFR1065_Nm'], col_offset=3)
+        set_value_at(report_df, 'Max Test Speed', test_data['MapResults']['EngNrefCFR1065_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed A', test_data['MapResults']['EngSpeedA_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed B', test_data['MapResults']['EngSpeedB_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed C', test_data['MapResults']['EngSpeedC_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed D', test_data['MapResults']['EngSpeedMinNTE_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Intermediate Speed', test_data['MapResults']['EngIntSpeedCFR1065_rev/min'],
+                     col_offset=3)
+        set_value_at(report_df, 'Max Test Torque', test_data['MapResults']['EngMaxTorque_Nm'], col_offset=3)
 
         dctadsummary = results['dctadsummary'][emissions_cycle_number-1]
 
@@ -139,17 +140,17 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
         set_average_min_max(report_df, dctad, 'Oil Sump Temperature', 'tOilSump_Avg_°C', col_offset=2)
         set_average_min_max(report_df, dctad, 'NOx Humidity Correction (Kh)', 'Kh', col_offset=2)
 
-        set_value_at(report_df, 'FuelType', phdp_globals.test_data['EngineData']['FuelTypeName'], col_offset=2)
+        set_value_at(report_df, 'FuelType', test_data['EngineData']['FuelTypeName'], col_offset=2)
         set_value_at(report_df, 'Fuel H/C Ratio',
-                     phdp_globals.test_data['EngineData']['FuelHTCRAT_ratio'], col_offset=2)
+                     test_data['EngineData']['FuelHTCRAT_ratio'], col_offset=2)
         set_value_at(report_df, 'Fuel O/C Ratio',
-                     phdp_globals.test_data['EngineData']['FuelOTCRAT_ratio'], col_offset=2)
+                     test_data['EngineData']['FuelOTCRAT_ratio'], col_offset=2)
         set_value_at(report_df, 'Fuel Low Heating Value',
-                     phdp_globals.test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
+                     test_data['EngineData']['FuelLowHeatingValue_MJ/kg'], col_offset=2)
 
         # Emissions data
 
-        EmsCalResults = phdp_globals.test_data['EmsCalResults']
+        EmsCalResults = test_data['EmsCalResults']
 
         EmsCalResults_ecns = EmsCalResults['EmissionsCycleNumber_Integer'].unique()
 
@@ -208,13 +209,14 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
             set_value_at(report_df, 'CVS Pressure at Exh Entry', pass_fail_range(pass_fail, [True, True]), col_offset=7)
 
         if 'BagFillProportionality' in dctadsummary:
-            set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)', dctadsummary['BagFillProportionality'], col_offset=2)
+            set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
+                         dctadsummary['BagFillProportionality'], col_offset=2)
             set_value_at(report_df, 'Bag Fill Proportionality (SEE/mean)',
                          pass_fail_range(dctadsummary['BagFillProportionality'].item(), [0, 3.5]), col_offset=7)
 
         skip_secs = 5
-        if phdp_globals.test_data['CVSDLSSampleResults'] is not None:
-            cvs_dlsresults = phdp_globals.test_data['CVSDLSSampleResults'].iloc[
+        if test_data['CVSDLSSampleResults'] is not None:
+            cvs_dlsresults = test_data['CVSDLSSampleResults'].iloc[
                              int(skip_secs / constants['SamplePeriod_s']):]
             set_average_min_max(report_df, cvs_dlsresults, 'PM Filter Face Velocity', 'FilterFaceVelocity_cm/s',
                                 col_offset=2, scale=1/100)
