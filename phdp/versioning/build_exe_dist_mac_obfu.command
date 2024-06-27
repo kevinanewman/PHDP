@@ -5,7 +5,7 @@ cd ..
 # build executable and generate .spec file for pyarmor
 
 pyinstaller phdp.py \
-    --name PHDP-0.1.5-mac-arm64-obfu.command \
+    --name PHDP-0.1.6-mac-arm64-obfu.command \
     --paths .:common \
     --add-data report_templates:report_templates \
     --noconfirm \
@@ -13,7 +13,7 @@ pyinstaller phdp.py \
 
 # generate obfuscated executable
 
-pyarmor gen --pack PHDP-0.1.5-mac-arm64-obfu.command.spec phdp.py
+pyarmor gen --pack PHDP-0.1.6-mac-arm64-obfu.command.spec phdp.py
 
 # cleanup
 
