@@ -10,7 +10,7 @@ from metpy.calc import specific_humidity_from_dewpoint
 from metpy.units import units
 
 
-def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, scale=1):
+def set_average_min_max(report_df, dctad, value_name, signal_name, col_offset, scale=1.0):
     found = False
 
     if type(dctad) is pd.Series:
@@ -57,20 +57,55 @@ def generate_general_report(report_filename, calc_mode, results, validation_resu
                             for i in range(0, len(results['tadsummary']))]
 
     for emissions_cycle_number in emissions_cycles:
-        # write header
-        set_value_at(report_df, 'Cell', test_site)
-        set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
-        set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
-        set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
-        set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
-        set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
-        set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
-
         if test_type == 'transient':
             # drift corrected time-aligned data
             dctad = results['dctad'][emissions_cycle_number-1]
         else:
             dctad = pd.concat([results['dctad'][mode-1] for mode in modes])
+
+        # write header
+        set_value_at(report_df, 'Cell', test_site)
+        set_value_at(report_df, 'Operator', phdp_globals.test_data['Workstation']['Operator'])
+        set_value_at(report_df, 'Test Date', '%s/%s/%s' % (test_datetime[4:6], test_datetime[6:8], test_datetime[0:4]))
+        set_value_at(report_df, 'Engine Hours Start', dctad['EngineHours_h'].min())
+        set_value_at(report_df, 'Engine Hours End', dctad['EngineHours_h'].max())
+        set_value_at(report_df, 'Power Map ID', phdp_globals.test_data['MapResults']['PowerMapID'])
+        set_value_at(report_df, 'Engine Model', phdp_globals.test_data['EngineData']['EngModel'])
+        set_value_at(report_df, 'Engine Number', phdp_globals.test_data['EngineData']['EngNumber'])
+        set_value_at(report_df, 'Engine Family', phdp_globals.test_data['Header']['EngFamily'])
+        set_value_at(report_df, 'Engine Displacement (liter)',
+                     '%.1f' % phdp_globals.test_data['EngineData']['EngDisplacement_l'].iloc[0])
+        set_value_at(report_df, 'Number of Cylinders',
+                     '%d' % phdp_globals.test_data['EngineData']['EngNumberOfCyls_Integer'].iloc[0])
+        set_value_at(report_df, 'Intake Restrictive Set Point (kPa)',
+                     phdp_globals.test_data['EngineData']['EngMaxAirInRestriction_kPa'])
+        set_value_at(report_df, 'Exhaust Restrictive Set Point (kPa)',
+                     phdp_globals.test_data['EngineData']['EngMaxExhBackPress_kPa'])
+
+        # set specified power map data
+        set_value_at(report_df, 'Low Idle Speed', phdp_globals.test_data['EngineData']['EngLowIdleSpeed_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Idle Torque CITT', phdp_globals.test_data['EngineData']['EngCITT_Nm'], col_offset=2)
+        set_value_at(report_df, 'Max Test Speed', phdp_globals.test_data['EngineData']['EngNrefCFR1065_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed A', phdp_globals.test_data['EngineData']['EngSpeedA_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed B', phdp_globals.test_data['EngineData']['EngSpeedB_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Speed C', phdp_globals.test_data['EngineData']['EngSpeedC_rev/min'], col_offset=2)
+        if 'EngSpeedD_rev/min' in phdp_globals.test_data['EngineData']:
+            set_value_at(report_df, 'Speed D', phdp_globals.test_data['EngineData']['EngSpeedD_rev/min'], col_offset=2)
+        else:
+            set_value_at(report_df, 'Speed D', 'N/A', col_offset=2)
+        set_value_at(report_df, 'Intermediate Speed', phdp_globals.test_data['EngineData']['EngIntSpeedCFR1065_rev/min'], col_offset=2)
+        set_value_at(report_df, 'Max Test Torque', phdp_globals.test_data['EngineData']['EngMaxTrqCFR1065_Nm'], col_offset=2)
+
+        # set observed power map data
+        set_value_at(report_df, 'Low Idle Speed', phdp_globals.test_data['MapResults']['EngLowIdleSpeed_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Idle Torque CITT', 'N/A', col_offset=3)
+        set_value_at(report_df, 'Max Test Speed', phdp_globals.test_data['MapResults']['EngNrefCFR1065_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed A', phdp_globals.test_data['MapResults']['EngSpeedA_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed B', phdp_globals.test_data['MapResults']['EngSpeedB_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed C', phdp_globals.test_data['MapResults']['EngSpeedC_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Speed D', phdp_globals.test_data['MapResults']['EngSpeedMinNTE_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Intermediate Speed', phdp_globals.test_data['MapResults']['EngIntSpeedCFR1065_rev/min'], col_offset=3)
+        set_value_at(report_df, 'Max Test Torque', phdp_globals.test_data['MapResults']['EngMaxTorqueCFR1065_Nm'], col_offset=3)
 
         dctadsummary = results['dctadsummary'][emissions_cycle_number-1]
 

@@ -87,6 +87,7 @@ def init_site_info(test_site, test_type):
                     'Time_Date': 0,
                     'ModeNumber_Integer': 0,
                     'EmissionsCycleNumber_Integer': 0,
+                    'EngineHours_h': 0,
                     'pCellAmbient_Avg_kPa': 0,
                     'spDyno_Avg_rev/min': 0,
                     'tqShaft_Avg_Nm': 0,
